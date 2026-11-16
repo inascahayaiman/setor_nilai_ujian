@@ -121,7 +121,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
  *  KONFIGURASI  -  ganti dengan URL Web App Apps Script Anda
  * ============================================================ */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbxKPp2yCczPw5uLQI4hETy3E_GJ5hl2H2U4LkQwuagxLP8jF3fhQxkFibe6_vlR688c/exec'
+  API_URL: 'PASTE_URL_WEB_APP_GAS_DI_SINI'   // contoh: https://script.google.com/macros/s/AKfycb.../exec
 };
 
 /* ============================================================
@@ -134,7 +134,7 @@ const guruLink = () => location.origin + location.pathname;
 
 const S = {
   cfg: {}, guruList: [], savedGuru: localStorage.getItem('guru_id') || '',
-  view: 'login', guru: null, tugas: [], cur: null, rows: [], locked: false, dirty: false,
+  mode: 'manual', view: 'login', guru: null, tugas: [], cur: null, rows: [], locked: false, dirty: false,
   adminToken: sessionStorage.getItem('adm_tok') || '', dash: null, tab: 'dashboard',
   expand: new Set(), filter: 'belum', q: '', kelasSel: '', rekap: null, timer: null
 };
@@ -272,6 +272,7 @@ async function bukaTugas(id) {
     S.cur = d.tugas;
     S.rows = d.siswa.map(s => ({nis: s.nis, nama: s.nama, nilai: s.nilai === '' ? '' : String(s.nilai)}));
     S.locked = d.tugas.status === 'Disetor';
+    S.mode = 'manual';
     S.dirty = false;
     S.view = 'input';
     renderGuru();
@@ -302,9 +303,18 @@ function viewInput() {
       ${S.locked ? `<div class="notice ok" style="margin:12px 0 0">Nilai sudah disetor pada ${fmtTime(t.waktu_setor)}. Untuk mengubah, klik <b>Revisi nilai</b>.</div>` : `<p class="muted small" style="margin:10px 0 0">Isi nilai murni hasil ujian (0–100, boleh desimal). Ketik <b>TH</b> atau tekan tombol TH bila siswa tidak hadir.</p>`}
     </div>
     ${S.locked ? `<div class="row" style="margin-bottom:12px"><button class="btn" data-act="revisi">Revisi nilai</button></div>` : `
-    <div class="row" style="margin-bottom:12px">
-      <button class="btn sm" data-act="template">⬇ Unduh template xlsx</button>
-      <button class="btn sm" data-act="impor">⬆ Impor dari xlsx</button>
+    <div class="card">
+      <b>Cara mengisi nilai</b>
+      <div class="row" style="margin:10px 0 0">
+        <button class="btn sm ${S.mode === 'manual' ? 'primary' : ''}" data-act="mode" data-m="manual">✍ Input manual</button>
+        <button class="btn sm ${S.mode === 'impor' ? 'primary' : ''}" data-act="mode" data-m="impor">📄 Impor dari Excel</button>
+      </div>
+      ${S.mode === 'impor' ? `
+      <ol class="small" style="margin:12px 0 0;padding-left:18px">
+        <li style="margin-bottom:8px">Unduh template (sudah berisi ${S.rows.length} siswa kelas ${esc(S.cur.kelas)}), isi kolom <b>Nilai</b>.<br><button class="btn sm" style="margin-top:6px" data-act="template">⬇ Unduh template xlsx</button></li>
+        <li>Unggah kembali file yang sudah diisi.<br><button class="btn sm primary" style="margin-top:6px" data-act="impor">⬆ Pilih file xlsx</button></li>
+      </ol>
+      <p class="muted small" style="margin:10px 0 0">Setelah impor, nilai muncul di daftar di bawah dan tetap bisa diperbaiki manual sebelum disetor.</p>` : `<p class="muted small" style="margin:10px 0 0">Ketik nilai pada kolom di samping nama siswa. Tekan Enter untuk pindah ke siswa berikutnya.</p>`}
       <input type="file" id="fileImpor" accept=".xlsx,.xls,.csv" style="display:none">
     </div>`}
     <div class="row between" style="margin-bottom:8px"><div id="stat" class="muted small"></div></div>
@@ -416,7 +426,8 @@ function imporFile(file) {
         S.rows[i].nilai = raw.replace(',', '.'); ok++;
       });
       S.dirty = true;
-      document.getElementById('rows').innerHTML = rowsHtml();
+      S.mode = 'manual';
+      renderGuru();
       updateStats();
       toast(`${ok} nilai diimpor${miss ? `, ${miss} NIS tidak dikenali` : ''}${bad ? `, ${bad} nilai tidak valid` : ''}. Periksa lalu simpan.`, bad || miss ? 'err' : 'ok');
     } catch (e) { toast(e.message, 'err'); }
@@ -665,6 +676,7 @@ const ACT = {
     document.getElementById('rows').innerHTML = rowsHtml();
     updateStats();
   },
+  mode: el => { S.mode = el.dataset.m; renderGuru(); updateStats(); },
   template: () => unduhTemplate(),
   impor: () => document.getElementById('fileImpor').click(),
   simpan: () => simpanDraft(),
