@@ -106,6 +106,25 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .sub td{padding:8px 12px 8px 28px;font-size:14px}
 .linkbox{display:flex;gap:8px}
 .linkbox input{font-family:ui-monospace,Menlo,monospace;font-size:13px}
+th.vh{height:150px;min-width:34px;padding:8px 4px;text-align:center;vertical-align:bottom;text-transform:none;letter-spacing:0;font-size:12px}
+.vh>div{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;margin:0 auto;max-height:140px;overflow:hidden;text-overflow:ellipsis}
+td.vh{vertical-align:top;height:110px;text-align:center;padding:6px 4px;font-size:12px}
+table.lg th,table.lg td{padding:6px 8px;font-size:13px}
+table.lg td.nm{white-space:nowrap}
+th.pend{background:var(--warn-l);color:var(--warn)}
+td.pc{background:var(--warn-l)}
+tr.stat td{background:#f8fafb;font-weight:600}
+td.th-c{color:var(--muted);font-weight:700}
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--brand);cursor:pointer;font-weight:700;text-align:left}
+.linkbtn:hover{text-decoration:underline}
+details.help{padding:0}
+details.help summary{padding:14px 16px;cursor:pointer;list-style:none}
+details.help summary::-webkit-details-marker{display:none}
+details.help[open] summary{border-bottom:1px solid var(--line)}
+details.help .body{padding:12px 16px 16px;font-size:14px}
+details.help ol,details.help ul{margin:6px 0 12px;padding-left:20px}
+details.help li{margin-bottom:5px}
+.legend{background:var(--gray-l);border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:10px}
 .hide-sm{display:table-cell}
 @media(max-width:640px){.hide-sm{display:none}.wrap{padding:12px}h1{font-size:20px}}
 </style>
@@ -121,7 +140,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
  *  KONFIGURASI  -  ganti dengan URL Web App Apps Script Anda
  * ============================================================ */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbxKPp2yCczPw5uLQI4hETy3E_GJ5hl2H2U4LkQwuagxLP8jF3fhQxkFibe6_vlR688c/exec'
+  API_URL: 'PASTE_URL_WEB_APP_GAS_DI_SINI'   // contoh: https://script.google.com/macros/s/AKfycb.../exec
 };
 
 /* ============================================================
@@ -136,6 +155,7 @@ const S = {
   cfg: {}, guruList: [], savedGuru: localStorage.getItem('guru_id') || '',
   mode: 'manual', view: 'login', guru: null, tugas: [], cur: null, rows: [], locked: false, dirty: false,
   adminToken: sessionStorage.getItem('adm_tok') || '', dash: null, tab: 'dashboard',
+  legerSel: '', leger: null, legerKey: null,
   expand: new Set(), filter: 'belum', q: '', kelasSel: '', rekap: null, timer: null
 };
 
@@ -177,6 +197,37 @@ function parseNilai(raw) {
   const n = parseFloat(v);
   if (n > 100) return {bad: true};
   return {val: Math.round(n * 100) / 100};
+}
+
+// tampilkan desimal dengan koma (format Indonesia) di kolom isian
+const tampil = v => String(v == null ? '' : v).replace('.', ',');
+
+function petunjuk() {
+  return `<details class="card help"><summary><b>📖 Petunjuk pengisian untuk guru</b> <span class="muted small">(ketuk untuk membuka)</span></summary>
+  <div class="body">
+    <b>Langkah-langkah</b>
+    <ol>
+      <li>Pilih nama Anda lalu klik <b>Masuk</b>. Daftar mapel dan kelas yang Anda ampu muncul otomatis.</li>
+      <li>Klik <b>Isi nilai</b> pada kelas yang akan diisi. Daftar siswa kelas tersebut tampil dengan kolom nilai kosong.</li>
+      <li>Isi nilai dengan salah satu cara:
+        <ul>
+          <li><b>Input manual</b>: ketik nilai di samping nama siswa, tekan <b>Enter</b> untuk pindah ke siswa berikutnya.</li>
+          <li><b>Impor dari Excel</b>: unduh template (sudah berisi daftar siswa), isi kolom <b>Nilai</b>, lalu unggah kembali. Hasil impor tetap bisa diperbaiki manual.</li>
+        </ul></li>
+      <li>Klik <b>Simpan draft</b> bila belum selesai. Anda bisa melanjutkan nanti dari perangkat mana pun.</li>
+      <li>Bila semua siswa sudah terisi, klik <b>Periksa &amp; setor</b>. Cek ringkasan (rata-rata, tertinggi, terendah), lalu klik <b>Ya, setor nilai</b>.</li>
+      <li>Ulangi untuk setiap mapel dan kelas. Setelah semua berstatus <b>Disetor</b>, klik <b>Selesai</b> agar panitia mendapat pemberitahuan.</li>
+    </ol>
+    <b>Aturan pengisian nilai</b>
+    <ul>
+      <li>Isi <b>nilai murni hasil ujian</b> siswa (bukan nilai akhir/rapor).</li>
+      <li>Rentang nilai <b>0–100</b>. Nilai desimal boleh memakai <b>koma</b> (contoh <b>85,5</b>) atau <b>titik</b> (<b>85.5</b>), maksimal 2 angka di belakang koma.</li>
+      <li><b>TH = Tidak Hadir.</b> Untuk siswa yang tidak mengikuti ujian, tekan tombol <b>TH</b> di samping kolom nilai (atau ketik TH). Siswa TH dianggap sudah terisi, tetapi <b>tidak dihitung</b> dalam rata-rata, nilai tertinggi/terendah, dan standar deviasi. Jangan diisi 0.</li>
+      <li>Semua siswa harus terisi (angka atau TH) sebelum nilai bisa disetor.</li>
+    </ul>
+    <b>Salah input setelah disetor?</b>
+    <ul><li>Buka kelas tersebut, klik <b>Revisi nilai</b>, perbaiki, lalu setor ulang.</li></ul>
+  </div></details>`;
 }
 
 function badge(st) { return `<span class="badge b-${esc(st)}">${esc(st)}</span>`; }
@@ -231,6 +282,7 @@ function viewLogin() {
     <select id="guruSel"><option value="">— pilih nama —</option>${opts}</select>
     <button class="btn primary block" data-act="masuk">Masuk</button>
   </div>
+  ${petunjuk()}
   <p class="foot">Panitia? <a href="#/admin">Masuk halaman admin</a></p></div>`;
 }
 
@@ -261,6 +313,7 @@ function viewTugas() {
       <div style="margin-top:12px">${progBar(done, S.tugas.filter(t => t.status === 'Draft').length, total)}</div>
     </div>
     ${S.guru.selesai ? `<div class="notice ok"><b>Terima kasih.</b> Seluruh setoran Anda sudah diterima panitia (${fmtTime(S.guru.waktu_selesai)}).</div>` : ''}
+    ${petunjuk()}
     ${html}
     ${S.guru.selesai ? '' : `<div class="sticky"><button class="btn primary block" style="margin-top:0" data-act="selesai" ${semua ? '' : 'disabled'}>${semua ? 'Selesai — kirim notifikasi ke panitia' : 'Setor semua penugasan untuk menyelesaikan'}</button></div>`}
   </div>`;
@@ -270,7 +323,8 @@ async function bukaTugas(id) {
   await run(async () => {
     const d = await api('tugasDetail', {pid: id});
     S.cur = d.tugas;
-    S.rows = d.siswa.map(s => ({nis: s.nis, nama: s.nama, nilai: s.nilai === '' ? '' : String(s.nilai)}));
+    S.rows = d.siswa.map(s => ({nis: s.nis, nama: s.nama, nilai: s.nilai === '' ? '' : tampil(s.nilai)}));
+    S.kelasTersedia = d.kelas_tersedia || [];
     S.locked = d.tugas.status === 'Disetor';
     S.mode = 'manual';
     S.dirty = false;
@@ -296,6 +350,15 @@ function rowsHtml() {
 
 function viewInput() {
   const t = S.cur;
+  if (!S.rows.length) {
+    return `<div class="wrap">
+    <div class="row" style="margin-bottom:12px"><button class="btn sm" data-act="kembali">← Kembali</button></div>
+    <div class="card"><h1 style="margin:0">${esc(t.mapel)}</h1><span class="muted">Kelas <b>${esc(t.kelas)}</b> · ${esc(t.guru)}</span></div>
+    <div class="notice bad"><b>Data siswa kelas ${esc(t.kelas)} tidak ditemukan.</b><br>
+      Hubungi panitia. Pastikan sheet <b>Siswa</b> berisi kolom <b>nis, nama, kelas</b> dan nama kelasnya sama dengan di sheet Penugasan.
+      ${S.kelasTersedia.length ? `<div class="small" style="margin-top:8px">Kelas yang terbaca di sheet Siswa: ${esc(S.kelasTersedia.join(', '))}</div>` : `<div class="small" style="margin-top:8px">Sheet Siswa tidak berisi data yang terbaca.</div>`}
+    </div></div>`;
+  }
   return `<div class="wrap">
     <div class="row" style="margin-bottom:12px"><button class="btn sm" data-act="kembali">← Kembali</button></div>
     <div class="card">
@@ -317,6 +380,8 @@ function viewInput() {
       <p class="muted small" style="margin:10px 0 0">Setelah impor, nilai muncul di daftar di bawah dan tetap bisa diperbaiki manual sebelum disetor.</p>` : `<p class="muted small" style="margin:10px 0 0">Ketik nilai pada kolom di samping nama siswa. Tekan Enter untuk pindah ke siswa berikutnya.</p>`}
       <input type="file" id="fileImpor" accept=".xlsx,.xls,.csv" style="display:none">
     </div>`}
+    ${S.locked ? '' : petunjuk()}
+    <div class="legend"><b>TH = Tidak Hadir.</b> Tekan tombol TH bila siswa tidak mengikuti ujian (jangan diisi 0). Siswa TH dihitung terisi tetapi tidak masuk rata-rata. Desimal boleh pakai koma, contoh <b>85,5</b>.</div>
     <div class="row between" style="margin-bottom:8px"><div id="stat" class="muted small"></div></div>
     <div class="tbl-wrap"><table><thead><tr><th>No</th><th>Siswa</th><th class="num">Nilai</th></tr></thead><tbody id="rows">${rowsHtml()}</tbody></table></div>
     ${S.locked ? '' : `<div class="sticky row" style="gap:10px"><button class="btn grow" data-act="simpan">Simpan draft</button><button class="btn primary grow" data-act="review">Periksa &amp; setor</button></div>`}
@@ -423,7 +488,7 @@ function imporFile(file) {
         if (i === undefined) { if (norm(d[kNis])) miss++; return; }
         if (raw === '') return;
         if (parseNilai(raw).bad) bad++;
-        S.rows[i].nilai = raw.replace(',', '.'); ok++;
+        S.rows[i].nilai = tampil(raw); ok++;
       });
       S.dirty = true;
       S.mode = 'manual';
@@ -470,6 +535,7 @@ async function loadDash(silent) {
     S.dash = await api('dashboard', null, true);
     S.cfg = S.dash.config;
     if (!S.kelasSel && S.dash.kelas.length) S.kelasSel = S.dash.kelas[0].nama;
+    if (!S.legerSel && S.dash.kelas.length) S.legerSel = S.dash.kelas[0].nama;
     renderAdmin();
   } catch (e) { if (!silent) toast(e.message, 'err'); }
   finally { if (!silent) busy(-1); }
@@ -492,11 +558,13 @@ function guruProgress() {
 
 function renderAdmin() {
   if (!S.dash) return;
-  const tabs = [['dashboard', 'Dashboard'], ['progres', 'Progres guru'], ['kelas', 'Rekap kelas'], ['data', 'Data']];
+  const tabs = [['dashboard', 'Dashboard'], ['progres', 'Progres guru'], ['kelas', 'Rekap kelas'], ['leger', 'Nilai siswa'], ['semua', 'Semua kelas'], ['data', 'Data']];
   let body = '';
   if (S.tab === 'dashboard') body = adminDashboard();
   else if (S.tab === 'progres') body = adminProgres();
   else if (S.tab === 'kelas') body = adminKelas();
+  else if (S.tab === 'leger') body = adminLeger();
+  else if (S.tab === 'semua') body = adminSemua();
   else body = adminData();
   const keepScroll = window.scrollY;
   document.getElementById('app').innerHTML = `
@@ -511,6 +579,7 @@ function renderAdmin() {
     </div>`;
   window.scrollTo(0, keepScroll);
   if (S.tab === 'kelas' && !S.rekap && S.kelasSel) loadRekap();
+  if (S.tab === 'leger' && S.legerSel && S.legerKey !== S.legerSel) loadLeger();
 }
 
 function adminDashboard() {
@@ -584,12 +653,157 @@ function adminKelas() {
   if (S.rekap) {
     const r = S.rekap, withN = r.filter(x => x.rata != null);
     const mean = withN.length ? withN.reduce((a, b) => a + b.rata, 0) / withN.length : null;
-    table = `<div class="tbl-wrap"><table><thead><tr><th>Mata pelajaran</th><th>Guru</th><th>Status</th><th class="num">Terisi</th><th class="num">Rata-rata</th><th class="num">Std. dev</th><th class="num">Tertinggi</th><th class="num">Terendah</th><th></th></tr></thead><tbody>
-      ${r.map(x => `<tr><td><b>${esc(x.mapel)}</b></td><td>${esc(x.guru)}</td><td>${badge(x.status)}</td><td class="num">${x.terisi}/${x.total}</td><td class="num"><b>${fmt(x.rata)}</b></td><td class="num">${fmt(x.sd)}</td><td class="num">${fmt(x.max)}</td><td class="num">${fmt(x.min)}</td><td>${x.terisi ? `<button class="btn sm" data-act="lihatNilai" data-id="${esc(x.id)}">Nilai</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Belum ada penugasan untuk kelas ini.</td></tr>'}
-      </tbody>${withN.length ? `<tfoot><tr><td colspan="4"><b>Rata-rata seluruh mapel</b></td><td class="num"><b>${fmt(mean)}</b></td><td colspan="4"></td></tr></tfoot>` : ''}</table></div>
-      <p class="muted small" style="margin-top:8px">Statistik dihitung dari nilai yang sudah masuk (siswa TH tidak dihitung). Standar deviasi: populasi.</p>`;
+    table = `<div class="tbl-wrap"><table><thead><tr><th>Mata pelajaran</th><th>Guru</th><th>Status</th><th class="num">Terisi</th><th class="num" title="Tidak hadir">TH</th><th class="num">Rata-rata</th><th class="num">Std. dev</th><th class="num">Tertinggi</th><th class="num">Terendah</th><th></th></tr></thead><tbody>
+      ${r.map(x => `<tr><td><b>${esc(x.mapel)}</b></td><td>${esc(x.guru)}</td><td>${badge(x.status)}</td><td class="num">${x.terisi}/${x.total}</td><td class="num">${x.th || '–'}</td><td class="num"><b>${fmt(x.rata)}</b></td><td class="num">${fmt(x.sd)}</td><td class="num">${fmt(x.max)}</td><td class="num">${fmt(x.min)}</td><td>${x.terisi ? `<button class="btn sm" data-act="lihatNilai" data-id="${esc(x.id)}">Nilai</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">Belum ada penugasan untuk kelas ini.</td></tr>'}
+      </tbody>${withN.length ? `<tfoot><tr><td colspan="5"><b>Rata-rata seluruh mapel</b></td><td class="num"><b>${fmt(mean)}</b></td><td colspan="4"></td></tr></tfoot>` : ''}</table></div>
+      <p class="muted small" style="margin-top:8px">Statistik dihitung dari nilai yang sudah masuk (TH = tidak hadir, tidak dihitung dalam rata-rata, standar deviasi, tertinggi, dan terendah). Standar deviasi: populasi.</p>`;
   }
   return `<div class="row" style="margin-bottom:12px"><select id="fKelas" style="max-width:300px">${opts}</select><button class="btn sm" data-act="unduhRekap" ${S.rekap && S.rekap.length ? '' : 'disabled'}>⬇ Unduh Excel</button></div>${table}`;
+}
+
+/* ---------- Nilai siswa (leger per kelas) ---------- */
+async function loadLeger() {
+  S.legerKey = S.legerSel;
+  S.leger = null;
+  await run(async () => { S.leger = await api('leger', {kelas: S.legerSel}, true); });
+  renderAdmin();
+}
+
+function legerCalc(g) {
+  const cols = g.mapel;
+  const rows = g.siswa.map(s => {
+    let sum = 0, n = 0;
+    cols.forEach(c => { const v = s.nilai[c.pid]; if (typeof v === 'number') { sum += v; n++; } });
+    return {s, sum, n, avg: n ? sum / n : null};
+  });
+  const stat = cols.map(c => {
+    const nums = g.siswa.map(s => s.nilai[c.pid]).filter(v => typeof v === 'number');
+    return nums.length ? {rata: nums.reduce((a, b) => a + b, 0) / nums.length, max: Math.max(...nums), min: Math.min(...nums)} : null;
+  });
+  return {rows, stat};
+}
+
+function legerBlock(g) {
+  const cols = g.mapel;
+  if (!g.siswa.length) return `<div class="card"><h2>Kelas ${esc(g.kelas)}</h2><p class="muted" style="margin:0">Belum ada data siswa untuk kelas ini.</p></div>`;
+  if (!cols.length) return `<div class="card"><h2>Kelas ${esc(g.kelas)}</h2><p class="muted" style="margin:0">Belum ada penugasan mapel untuk kelas ini.</p></div>`;
+  const c = legerCalc(g);
+  const pend = cols.filter(x => x.status !== 'Disetor').length;
+  const cell = v => v === undefined ? '<td class="num muted">–</td>' : (v === 'TH' ? '<td class="num th-c">TH</td>' : `<td class="num">${fmt(v)}</td>`);
+  return `<div style="margin-bottom:24px">
+    <div class="row between" style="margin-bottom:8px"><h2 style="margin:0">Daftar nilai kelas ${esc(g.kelas)}</h2>
+      <span class="small muted">${g.siswa.length} siswa · ${cols.length} mapel${pend ? ` · <span style="color:var(--warn)">${pend} mapel belum lengkap disetor</span>` : ''}</span></div>
+    <div class="tbl-wrap"><table class="lg"><thead><tr><th>No</th><th>NIS</th><th>Nama lengkap</th>
+      ${cols.map(m => `<th class="vh ${m.status !== 'Disetor' ? 'pend' : ''}" title="${esc(m.mapel)} — ${esc(m.guru)} (${esc(m.status)})"><div>${esc(m.mapel)}</div></th>`).join('')}
+      <th class="num">Total nilai</th><th class="num">Rata-rata</th></tr></thead><tbody>
+      ${c.rows.map((r, i) => `<tr><td class="muted">${i + 1}</td><td class="muted">${esc(r.s.nis)}</td><td class="nm"><b>${esc(r.s.nama)}</b></td>${cols.map(m => cell(r.s.nilai[m.pid])).join('')}<td class="num"><b>${r.n ? fmt(r.sum) : '–'}</b></td><td class="num"><b>${fmt(r.avg)}</b></td></tr>`).join('')}
+      ${[['Rata-rata', 'rata'], ['Tertinggi', 'max'], ['Terendah', 'min']].map(([lb, k]) => `<tr class="stat"><td colspan="3">${lb}</td>${c.stat.map(s => `<td class="num">${s ? fmt(s[k]) : '–'}</td>`).join('')}<td colspan="2"></td></tr>`).join('')}
+      <tr><td colspan="3"><b>Guru mata pelajaran</b></td>${cols.map(m => `<td class="vh"><div>${esc(m.guru)}</div></td>`).join('')}<td colspan="2"></td></tr>
+    </tbody></table></div></div>`;
+}
+
+function adminLeger() {
+  const opts = S.dash.kelas.map(k => `<option value="${esc(k.nama)}" ${k.nama === S.legerSel ? 'selected' : ''}>${esc(k.nama)} (${k.siswa} siswa)</option>`).join('')
+    + `<option value="*" ${S.legerSel === '*' ? 'selected' : ''}>— Semua kelas —</option>`;
+  return `<div class="row" style="margin-bottom:12px"><select id="fLeger" style="max-width:300px">${opts}</select>
+      <button class="btn sm" data-act="unduhLeger" ${S.leger && S.leger.length ? '' : 'disabled'}>⬇ Unduh Excel</button></div>
+    ${S.leger ? (S.leger.length ? S.leger.map(legerBlock).join('') : '<p class="muted">Tidak ada data untuk kelas ini.</p>') : '<p class="muted">Memuat…</p>'}
+    <p class="muted small">Kolom berlatar kuning = mapel yang belum seluruhnya disetor. <b>–</b> = belum diisi, <b>TH</b> = tidak hadir (tidak dihitung). Total nilai dan rata-rata dihitung dari nilai yang sudah masuk.</p>`;
+}
+
+/* ---------- Semua kelas (matriks rata-rata kelas × mapel) ---------- */
+function semuaData() {
+  const d = S.dash, kn = s => String(s).replace(/\s+/g, ' ').trim().toUpperCase();
+  const mapel = [...new Set(d.tugas.map(t => t.mapel))].sort((a, b) => a.localeCompare(b));
+  const rows = d.kelas.map(k => {
+    const ts = d.tugas.filter(t => kn(t.kelas) === kn(k.nama));
+    const cells = mapel.map(mn => {
+      const tm = ts.filter(t => t.mapel === mn);
+      if (!tm.length) return null;
+      const w = tm.filter(t => t.rata != null), n = w.reduce((a, t) => a + t.n, 0);
+      return {rata: n ? w.reduce((a, t) => a + t.rata * t.n, 0) / n : null, n, done: tm.every(t => t.status === 'Disetor'), guru: [...new Set(tm.map(t => t.guru))].join(', ')};
+    });
+    const got = cells.filter(c => c && c.rata != null);
+    return {kelas: k.nama, siswa: k.siswa, cells, avg: got.length ? got.reduce((a, c) => a + c.rata, 0) / got.length : null,
+      progres: `${ts.filter(t => t.status === 'Disetor').length}/${ts.length}`};
+  });
+  const foot = mapel.map((_, j) => { let s = 0, n = 0; rows.forEach(r => { const c = r.cells[j]; if (c && c.rata != null) { s += c.rata * c.n; n += c.n; } }); return n ? s / n : null; });
+  const av = rows.filter(r => r.avg != null);
+  return {mapel, rows, foot, footAvg: av.length ? av.reduce((a, r) => a + r.avg, 0) / av.length : null};
+}
+
+function adminSemua() {
+  const m = semuaData();
+  if (!m.rows.length) return '<p class="muted">Belum ada data kelas.</p>';
+  return `<div class="row" style="margin-bottom:12px">
+      <button class="btn sm" data-act="unduhSemua">⬇ Unduh rekap (Excel)</button>
+      <button class="btn sm" data-act="unduhLengkap">⬇ Unduh lengkap: rekap + nilai siswa semua kelas</button></div>
+    <div class="tbl-wrap"><table class="lg"><thead><tr><th>Kelas</th><th class="num">Siswa</th>
+      ${m.mapel.map(n => `<th class="vh"><div>${esc(n)}</div></th>`).join('')}
+      <th class="num">Rata-rata seluruh mapel</th><th class="num">Disetor</th></tr></thead><tbody>
+      ${m.rows.map(r => `<tr><td><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button></td><td class="num">${r.siswa}</td>
+        ${r.cells.map(c => !c ? '<td class="num muted">·</td>' : `<td class="num ${c.done ? '' : 'pc'}" title="${esc(c.guru)} · ${c.n} siswa${c.done ? '' : ' · belum lengkap disetor'}">${fmt(c.rata)}</td>`).join('')}
+        <td class="num"><b>${fmt(r.avg)}</b></td><td class="num">${esc(r.progres)}</td></tr>`).join('')}
+      <tr class="stat"><td colspan="2">Rata-rata semua kelas</td>${m.foot.map(v => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num">${fmt(m.footAvg)}</td><td></td></tr>
+    </tbody></table></div>
+    <p class="muted small" style="margin-top:8px">Setiap sel adalah rata-rata nilai kelas pada mapel tersebut. <b>·</b> = mapel tidak diajarkan di kelas itu. Latar kuning = belum seluruhnya disetor. Baris bawah dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
+}
+
+/* ---------- Ekspor Excel ---------- */
+const r2 = x => (x == null ? '' : Math.round(x * 100) / 100);
+
+function legerAoa(g) {
+  const c = legerCalc(g), cols = g.mapel;
+  const stat = (label, k) => [label, '', '', '', ...c.stat.map(s => s ? r2(s[k]) : ''), '', ''];
+  return [['DAFTAR NILAI KELAS ' + g.kelas.toUpperCase()], [],
+    ['No', 'Kelas', 'NIS', 'Nama Lengkap', ...cols.map(m => m.mapel), 'Total Nilai', 'Rata-rata'],
+    ...c.rows.map((r, i) => [i + 1, g.kelas, r.s.nis, r.s.nama, ...cols.map(m => { const v = r.s.nilai[m.pid]; return v === undefined ? '' : v; }), r.n ? r2(r.sum) : '', r2(r.avg)]),
+    [], stat('Rata-rata', 'rata'), stat('Tertinggi', 'max'), stat('Terendah', 'min'), [],
+    ['Guru Mata Pelajaran', '', '', '', ...cols.map(m => m.guru)]];
+}
+
+function semuaAoa() {
+  const m = semuaData();
+  return [['REKAP RATA-RATA NILAI SEMUA KELAS'], [],
+    ['Kelas', 'Jumlah Siswa', ...m.mapel, 'Rata-rata Seluruh Mapel', 'Disetor'],
+    ...m.rows.map(r => [r.kelas, r.siswa, ...r.cells.map(c => c && c.rata != null ? r2(c.rata) : ''), r2(r.avg), r.progres]),
+    [], ['Rata-rata semua kelas', '', ...m.foot.map(r2), r2(m.footAvg), '']];
+}
+
+function addSheet(wb, aoa, name, used, firstW) {
+  let n = String(name).replace(/[\[\]\*\?\/\\:]/g, '-').slice(0, 31) || 'Sheet', b = n, i = 2;
+  while (used.has(n.toLowerCase())) n = b.slice(0, 28) + '-' + i++;
+  used.add(n.toLowerCase());
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch: firstW || 6}, {wch: 14}, {wch: 14}, {wch: 32}];
+  XLSX.utils.book_append_sheet(wb, ws, n);
+}
+
+function bukuLeger(list, denganRekap) {
+  const wb = XLSX.utils.book_new(), used = new Set();
+  if (denganRekap) addSheet(wb, semuaAoa(), 'Rekap Semua Kelas', used, 24);
+  list.forEach(g => { if (g.siswa.length && g.mapel.length) addSheet(wb, legerAoa(g), g.kelas, used, 6); });
+  return wb;
+}
+
+function namaFile(s) { return String(s).replace(/[^\w\-]+/g, '_'); }
+
+function unduhLeger() {
+  const all = S.legerSel === '*';
+  XLSX.writeFile(bukuLeger(S.leger, all), all ? 'Nilai_Semua_Kelas.xlsx' : 'Nilai_' + namaFile(S.legerSel) + '.xlsx');
+}
+
+function unduhSemua() {
+  const wb = XLSX.utils.book_new();
+  addSheet(wb, semuaAoa(), 'Rekap Semua Kelas', new Set(), 24);
+  XLSX.writeFile(wb, 'Rekap_Rata-rata_Semua_Kelas.xlsx');
+}
+
+async function unduhLengkap() {
+  await run(async () => {
+    const list = await api('leger', {kelas: '*'}, true);
+    XLSX.writeFile(bukuLeger(list, true), 'Nilai_Lengkap_Semua_Kelas.xlsx');
+  });
 }
 
 function adminData() {
@@ -632,17 +846,17 @@ async function lihatNilai(pid) {
     openModal(`<h2>${esc(d.tugas.mapel)} · ${esc(d.tugas.kelas)}</h2>
       <p class="muted small">Guru: ${esc(d.tugas.guru)} · ${badge(d.tugas.status)}${mean != null ? ` · rata-rata ${fmt(mean)}` : ''}</p>
       <div class="tbl-wrap"><table><thead><tr><th>Siswa</th><th class="num">Nilai</th></tr></thead><tbody>
-      ${d.siswa.map(s => `<tr><td>${esc(s.nama)}<div class="muted small">${esc(s.nis)}</div></td><td class="num"><b>${s.nilai === '' ? '<span class="muted">–</span>' : esc(s.nilai)}</b></td></tr>`).join('')}
+      ${d.siswa.map(s => `<tr><td>${esc(s.nama)}<div class="muted small">${esc(s.nis)}</div></td><td class="num"><b>${s.nilai === '' ? '<span class="muted">–</span>' : (typeof s.nilai === 'number' ? fmt(s.nilai) : esc(s.nilai))}</b></td></tr>`).join('')}
       </tbody></table></div>
       <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" data-act="closeModal">Tutup</button></div>`);
   });
 }
 
 function unduhRekap() {
-  const aoa = [['Kelas', S.kelasSel], [], ['Mata Pelajaran', 'Guru', 'Status', 'Terisi', 'Jumlah Siswa', 'Rata-rata', 'Std. Deviasi', 'Tertinggi', 'Terendah']]
-    .concat(S.rekap.map(x => [x.mapel, x.guru, x.status, x.terisi, x.total, x.rata, x.sd, x.max, x.min]));
+  const aoa = [['Kelas', S.kelasSel], [], ['Mata Pelajaran', 'Guru', 'Status', 'Terisi', 'Jumlah Siswa', 'TH (Tidak Hadir)', 'Rata-rata', 'Std. Deviasi', 'Tertinggi', 'Terendah']]
+    .concat(S.rekap.map(x => [x.mapel, x.guru, x.status, x.terisi, x.total, x.th || 0, x.rata, x.sd, x.max, x.min]));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch: 30}, {wch: 28}, {wch: 10}, {wch: 8}, {wch: 12}, {wch: 10}, {wch: 12}, {wch: 10}, {wch: 10}];
+  ws['!cols'] = [{wch: 30}, {wch: 28}, {wch: 10}, {wch: 8}, {wch: 12}, {wch: 16}, {wch: 10}, {wch: 12}, {wch: 10}, {wch: 10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
   XLSX.writeFile(wb, `Rekap_Nilai_${S.kelasSel}`.replace(/[^\w\-]+/g, '_') + '.xlsx');
@@ -695,7 +909,7 @@ const ACT = {
   },
   // admin
   logout: () => adminLogout(),
-  refresh: () => { S.rekap = null; loadDash(); },
+  refresh: () => { S.rekap = null; S.leger = null; S.legerKey = null; loadDash(); },
   tab: el => { S.tab = el.dataset.t; renderAdmin(); },
   salinLink: () => {
     const i = document.getElementById('linkGuru'); i.select();
@@ -705,6 +919,10 @@ const ACT = {
   ingatkan: el => ingatkan(el.dataset.id),
   lihatNilai: el => lihatNilai(el.dataset.id),
   unduhRekap: () => unduhRekap(),
+  unduhLeger: () => unduhLeger(),
+  unduhSemua: () => unduhSemua(),
+  unduhLengkap: () => unduhLengkap(),
+  keLeger: el => { S.legerSel = el.dataset.k; S.legerKey = null; S.leger = null; S.tab = 'leger'; renderAdmin(); },
   closeModalBg: (el, e) => { if (e.target === el) closeModal(); }
 };
 
@@ -730,6 +948,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   if (e.target.id === 'fileImpor' && e.target.files[0]) { imporFile(e.target.files[0]); e.target.value = ''; }
   else if (e.target.id === 'fFilter') { S.filter = e.target.value; renderAdmin(); }
+  else if (e.target.id === 'fLeger') { S.legerSel = e.target.value; S.legerKey = null; S.leger = null; renderAdmin(); }
   else if (e.target.id === 'fKelas') { S.kelasSel = e.target.value; S.rekap = null; renderAdmin(); }
 });
 
