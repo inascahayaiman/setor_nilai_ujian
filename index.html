@@ -53,7 +53,9 @@ input:disabled{background:var(--gray-l);color:var(--muted)}
 .b-Draft{background:var(--warn-l);color:var(--warn)}
 .b-Disetor,.b-ok{background:var(--ok-l);color:var(--ok)}
 .b-info{background:var(--gray-l);color:var(--muted)}
+.b-Diwakilkan{background:#e0e7ff;color:#3730a3}
 .chip{display:inline-block;padding:1px 8px;border-radius:6px;background:var(--brand-l);color:var(--brand-d);font-size:12px;font-weight:600}
+.chip.tt{background:#ede9fe;color:#5b21b6}
 .prog{height:9px;border-radius:99px;background:var(--gray-l);overflow:hidden;display:flex}
 .prog i{display:block;height:100%}
 .prog .g{background:#22a05b}.prog .y{background:#e9b422}
@@ -153,7 +155,7 @@ const guruLink = () => location.origin + location.pathname;
 
 const S = {
   cfg: {}, guruList: [], savedGuru: localStorage.getItem('guru_id') || '',
-  mode: 'manual', view: 'login', guru: null, tugas: [], cur: null, rows: [], locked: false, dirty: false,
+  view: 'login', guru: null, tugas: [], cur: null, rows: [], locked: false, dirty: false,
   adminToken: sessionStorage.getItem('adm_tok') || '', dash: null, tab: 'dashboard',
   legerSel: '', leger: null, legerKey: null,
   expand: new Set(), filter: 'belum', q: '', kelasSel: '', rekap: null, timer: null
@@ -202,6 +204,36 @@ function parseNilai(raw) {
 // tampilkan desimal dengan koma (format Indonesia) di kolom isian
 const tampil = v => String(v == null ? '' : v).replace('.', ',');
 
+// "Diwakilkan" = guru lain di kelas/mapel yang sama sudah menyetor nilainya, jadi dianggap selesai
+const isDone = s => s === 'Disetor' || s === 'Diwakilkan';
+// Kode guru yang bisa diklik -> pop up berisi nama lengkap guru
+function guruTag(label, gurus) {
+  const arr = (gurus || []).map(g => ({k: g.kode, n: g.nama, p: g.peran || ''}));
+  return `<button class="linkbtn" data-act="infoGuru" data-l="${esc(label)}" data-g="${esc(JSON.stringify(arr))}" title="Klik untuk melihat nama guru">${esc(label)}</button>`;
+}
+const guruNames = x => (x.gurus || []).map(g => g.kode + ' - ' + g.nama).join('; ');
+// Keterangan singkatan mapel (list berisi {singkat, mapel})
+function legendMapel(list) {
+  const m = {};
+  (list || []).forEach(x => { if (x.singkat) m[x.singkat] = x.mapel; });
+  const k = Object.keys(m);
+  if (!k.length) return '';
+  return `<p class="muted small" style="margin:10px 0 0"><b>Singkatan mapel:</b> ${k.map(s => `${esc(s)} = ${esc(m[s])}`).join(' · ')}</p>`;
+}
+// Keterangan singkatan & kode guru untuk file Excel
+function ketAoa(cols) {
+  const mp = {}, gr = {};
+  cols.forEach(m => { mp[m.singkat] = m.mapel; (m.gurus || []).forEach(g => { gr[g.kode] = g.nama; }); });
+  const out = [[], ['Keterangan Singkatan Mapel']].concat(Object.keys(mp).map(k => [k, mp[k]]));
+  if (Object.keys(gr).length) out.push([], ['Keterangan Kode Guru'], ...Object.keys(gr).map(k => [k, gr[k]]));
+  return out;
+}
+function teamNote(t) {
+  if (!t.rekan || !t.rekan.length) return '';
+  if (t.status === 'Diwakilkan') return `<div class="notice ok"><b>Sudah diwakilkan.</b> Nilai kelas ini sudah disetor oleh ${esc((t.wakil || []).map(w => w.kode + ' – ' + w.nama).join(', '))}, sehingga Anda dianggap sudah mengisi dan <b>tidak perlu mengisi</b>. Jika Anda tetap mengisi, nilai akhir menjadi rata-rata nilai Anda dan guru tersebut.</div>`;
+  return `<div class="notice warn"><b>Team Teaching</b> bersama ${t.rekan.map(r => `<b>${esc(r.kode)}</b> (${esc(r.nama)})`).join(', ')}. Nilai akhir siswa = <b>rata-rata</b> nilai yang disetor tiap guru. Bila guru lain tidak mengisi, nilai Anda dipakai apa adanya.</div>`;
+}
+
 function petunjuk() {
   return `<details class="card help"><summary><b>📖 Petunjuk pengisian untuk guru</b> <span class="muted small">(ketuk untuk membuka)</span></summary>
   <div class="body">
@@ -209,11 +241,7 @@ function petunjuk() {
     <ol>
       <li>Pilih nama Anda lalu klik <b>Masuk</b>. Daftar mapel dan kelas yang Anda ampu muncul otomatis.</li>
       <li>Klik <b>Isi nilai</b> pada kelas yang akan diisi. Daftar siswa kelas tersebut tampil dengan kolom nilai kosong.</li>
-      <li>Isi nilai dengan salah satu cara:
-        <ul>
-          <li><b>Input manual</b>: ketik nilai di samping nama siswa, tekan <b>Enter</b> untuk pindah ke siswa berikutnya.</li>
-          <li><b>Impor dari Excel</b>: unduh template (sudah berisi daftar siswa), isi kolom <b>Nilai</b>, lalu unggah kembali. Hasil impor tetap bisa diperbaiki manual.</li>
-        </ul></li>
+      <li>Ketik nilai di samping nama siswa, tekan <b>Enter</b> untuk pindah ke siswa berikutnya. (Opsional: tombol <b>Impor Excel</b> bila nilai sudah ada di file Excel.)</li>
       <li>Klik <b>Simpan draft</b> bila belum selesai. Anda bisa melanjutkan nanti dari perangkat mana pun.</li>
       <li>Bila semua siswa sudah terisi, klik <b>Periksa &amp; setor</b>. Cek ringkasan (rata-rata, tertinggi, terendah), lalu klik <b>Ya, setor nilai</b>.</li>
       <li>Ulangi untuk setiap mapel dan kelas. Setelah semua berstatus <b>Disetor</b>, klik <b>Selesai</b> agar panitia mendapat pemberitahuan.</li>
@@ -224,6 +252,11 @@ function petunjuk() {
       <li>Rentang nilai <b>0–100</b>. Nilai desimal boleh memakai <b>koma</b> (contoh <b>85,5</b>) atau <b>titik</b> (<b>85.5</b>), maksimal 2 angka di belakang koma.</li>
       <li><b>TH = Tidak Hadir.</b> Untuk siswa yang tidak mengikuti ujian, tekan tombol <b>TH</b> di samping kolom nilai (atau ketik TH). Siswa TH dianggap sudah terisi, tetapi <b>tidak dihitung</b> dalam rata-rata, nilai tertinggi/terendah, dan standar deviasi. Jangan diisi 0.</li>
       <li>Semua siswa harus terisi (angka atau TH) sebelum nilai bisa disetor.</li>
+    </ul>
+    <b>Mapel diajar beberapa guru (Team Teaching)</b>
+    <ul>
+      <li>Setiap guru mengisi nilainya sendiri. Nilai akhir siswa = <b>rata-rata</b> nilai dari guru yang mengisi.</li>
+      <li>Bila hanya satu guru yang mengisi, nilainya dipakai <b>apa adanya</b> dan guru lain otomatis berstatus <b>Diwakilkan</b> (dianggap sudah mengisi).</li>
     </ul>
     <b>Salah input setelah disetor?</b>
     <ul><li>Buka kelas tersebut, klik <b>Revisi nilai</b>, perbaiki, lalu setor ulang.</li></ul>
@@ -292,7 +325,7 @@ async function loadTugas() {
 }
 
 function viewTugas() {
-  const total = S.tugas.length, done = S.tugas.filter(t => t.status === 'Disetor').length;
+  const total = S.tugas.length, done = S.tugas.filter(t => isDone(t.status)).length;
   const groups = {};
   S.tugas.forEach(t => { (groups[t.mapel_id] = groups[t.mapel_id] || {mapel: t.mapel, program: t.program, items: []}).items.push(t); });
   const html = Object.values(groups).map(gr => `
@@ -300,9 +333,9 @@ function viewTugas() {
       <div class="row" style="margin-bottom:4px"><h2 style="margin:0">${esc(gr.mapel)}</h2>${gr.program && gr.program.toLowerCase() !== 'umum' ? `<span class="chip">${esc(gr.program)}</span>` : ''}</div>
       ${gr.items.map(t => `
         <div class="task">
-          <div class="grow"><b>${esc(t.kelas)}</b><div class="muted small">${t.terisi} dari ${t.total} siswa terisi${t.status === 'Disetor' ? ' · disetor ' + fmtTime(t.waktu_setor) : ''}</div></div>
+          <div class="grow"><b>${esc(t.kelas)}</b>${t.rekan && t.rekan.length ? ' <span class="chip tt" title="Mapel ini diajar bersama guru lain">Team Teaching</span>' : ''}<div class="muted small">${t.status === 'Diwakilkan' ? 'Sudah disetor oleh ' + esc((t.wakil || []).map(w => w.kode).join(', ')) + ' (Anda dianggap sudah mengisi)' : `${t.terisi} dari ${t.total} siswa terisi${t.status === 'Disetor' ? ' · disetor ' + fmtTime(t.waktu_setor) : ''}`}</div></div>
           ${badge(t.status)}
-          <button class="btn sm ${t.status === 'Disetor' ? '' : 'primary'}" data-act="bukaTugas" data-id="${esc(t.id)}">${t.status === 'Disetor' ? 'Lihat' : (t.status === 'Draft' ? 'Lanjutkan' : 'Isi nilai')}</button>
+          <button class="btn sm ${isDone(t.status) ? '' : 'primary'}" data-act="bukaTugas" data-id="${esc(t.id)}">${t.status === 'Disetor' ? 'Lihat' : (t.status === 'Diwakilkan' ? 'Buka' : (t.status === 'Draft' ? 'Lanjutkan' : 'Isi nilai'))}</button>
         </div>`).join('')}
     </div>`).join('');
   const semua = total > 0 && done === total;
@@ -326,7 +359,6 @@ async function bukaTugas(id) {
     S.rows = d.siswa.map(s => ({nis: s.nis, nama: s.nama, nilai: s.nilai === '' ? '' : tampil(s.nilai)}));
     S.kelasTersedia = d.kelas_tersedia || [];
     S.locked = d.tugas.status === 'Disetor';
-    S.mode = 'manual';
     S.dirty = false;
     S.view = 'input';
     renderGuru();
@@ -365,19 +397,11 @@ function viewInput() {
       <div class="row between"><div><h1 style="margin:0">${esc(t.mapel)}</h1><span class="muted">Kelas <b>${esc(t.kelas)}</b> · ${esc(t.guru)}</span></div>${badge(t.status)}</div>
       ${S.locked ? `<div class="notice ok" style="margin:12px 0 0">Nilai sudah disetor pada ${fmtTime(t.waktu_setor)}. Untuk mengubah, klik <b>Revisi nilai</b>.</div>` : `<p class="muted small" style="margin:10px 0 0">Isi nilai murni hasil ujian (0–100, boleh desimal). Ketik <b>TH</b> atau tekan tombol TH bila siswa tidak hadir.</p>`}
     </div>
+    ${teamNote(t)}
     ${S.locked ? `<div class="row" style="margin-bottom:12px"><button class="btn" data-act="revisi">Revisi nilai</button></div>` : `
     <div class="card">
-      <b>Cara mengisi nilai</b>
-      <div class="row" style="margin:10px 0 0">
-        <button class="btn sm ${S.mode === 'manual' ? 'primary' : ''}" data-act="mode" data-m="manual">✍ Input manual</button>
-        <button class="btn sm ${S.mode === 'impor' ? 'primary' : ''}" data-act="mode" data-m="impor">📄 Impor dari Excel</button>
-      </div>
-      ${S.mode === 'impor' ? `
-      <ol class="small" style="margin:12px 0 0;padding-left:18px">
-        <li style="margin-bottom:8px">Unduh template (sudah berisi ${S.rows.length} siswa kelas ${esc(S.cur.kelas)}), isi kolom <b>Nilai</b>.<br><button class="btn sm" style="margin-top:6px" data-act="template">⬇ Unduh template xlsx</button></li>
-        <li>Unggah kembali file yang sudah diisi.<br><button class="btn sm primary" style="margin-top:6px" data-act="impor">⬆ Pilih file xlsx</button></li>
-      </ol>
-      <p class="muted small" style="margin:10px 0 0">Setelah impor, nilai muncul di daftar di bawah dan tetap bisa diperbaiki manual sebelum disetor.</p>` : `<p class="muted small" style="margin:10px 0 0">Ketik nilai pada kolom di samping nama siswa. Tekan Enter untuk pindah ke siswa berikutnya.</p>`}
+      <div class="row between"><div class="grow"><b>Isi nilai</b><div class="muted small">Daftar siswa tampil otomatis. Ketik nilai di samping nama siswa, tekan Enter untuk pindah ke siswa berikutnya.</div></div>
+      <div class="row"><button class="btn sm" data-act="template">⬇ Template Excel</button><button class="btn sm" data-act="impor">⬆ Impor Excel</button></div></div>
       <input type="file" id="fileImpor" accept=".xlsx,.xls,.csv" style="display:none">
     </div>`}
     ${S.locked ? '' : petunjuk()}
@@ -491,7 +515,6 @@ function imporFile(file) {
         S.rows[i].nilai = tampil(raw); ok++;
       });
       S.dirty = true;
-      S.mode = 'manual';
       renderGuru();
       updateStats();
       toast(`${ok} nilai diimpor${miss ? `, ${miss} NIS tidak dikenali` : ''}${bad ? `, ${bad} nilai tidak valid` : ''}. Periksa lalu simpan.`, bad || miss ? 'err' : 'ok');
@@ -551,7 +574,7 @@ function guruProgress() {
   const d = S.dash;
   return d.guru.map(g => {
     const ts = d.tugas.filter(t => t.guru_id === g.id);
-    const done = ts.filter(t => t.status === 'Disetor').length, draft = ts.filter(t => t.status === 'Draft').length;
+    const done = ts.filter(t => isDone(t.status)).length, draft = ts.filter(t => t.status === 'Draft').length;
     return Object.assign({}, g, {ts, total: ts.length, done, draft, belum: ts.length - done - draft, complete: ts.length > 0 && done === ts.length});
   }).filter(g => g.total > 0);
 }
@@ -584,7 +607,7 @@ function renderAdmin() {
 
 function adminDashboard() {
   const d = S.dash, c = d.counts, t = d.tugas;
-  const n = t.length, done = t.filter(x => x.status === 'Disetor').length, draft = t.filter(x => x.status === 'Draft').length, belum = n - done - draft;
+  const n = t.length, done = t.filter(x => isDone(x.status)).length, draft = t.filter(x => x.status === 'Draft').length, belum = n - done - draft;
   const gp = guruProgress(), selesai = gp.filter(g => g.selesai).length;
   const ev = [];
   t.filter(x => x.waktu_setor).forEach(x => ev.push({t: x.waktu_setor, txt: `<b>${esc(x.guru)}</b> menyetor ${esc(x.mapel)} · ${esc(x.kelas)}`}));
@@ -635,7 +658,7 @@ function adminProgres() {
         <button class="btn sm" data-act="detailGuru" data-id="${esc(g.id)}">${open ? 'Tutup' : 'Detail'}</button>
         ${g.complete ? '' : `<button class="btn sm wa" data-act="ingatkan" data-id="${esc(g.id)}">Ingatkan</button>`}
       </td></tr>
-      ${open ? g.ts.map(t => `<tr class="sub"><td>${esc(t.mapel)} · <b>${esc(t.kelas)}</b></td><td class="muted small">${t.terisi}/${t.total} terisi${t.waktu_setor ? ' · ' + fmtTime(t.waktu_setor) : ''}</td><td class="hide-sm">${badge(t.status)}</td><td style="text-align:right">${t.terisi ? `<button class="btn sm" data-act="lihatNilai" data-id="${esc(t.id)}">Lihat nilai</button>` : ''}</td></tr>`).join('') : ''}`;
+      ${open ? g.ts.map(t => `<tr class="sub"><td><span title="${esc(t.mapel)}">${esc(t.singkat)}</span> · <b>${esc(t.kelas)}</b></td><td class="muted small">${t.status === 'Diwakilkan' ? 'diwakilkan oleh ' + esc((t.wakil || []).map(w => w.kode).join(', ')) : t.terisi + '/' + t.total + ' terisi'}${t.waktu_setor ? ' · ' + fmtTime(t.waktu_setor) : ''}</td><td class="hide-sm">${badge(t.status)}</td><td style="text-align:right">${t.terisi ? `<button class="btn sm" data-act="lihatNilai" data-id="${esc(t.id)}">Lihat nilai</button>` : ''}</td></tr>`).join('') : ''}`;
   }).join('');
   return `
     <div class="row" style="margin-bottom:12px">
@@ -654,9 +677,10 @@ function adminKelas() {
     const r = S.rekap, withN = r.filter(x => x.rata != null);
     const mean = withN.length ? withN.reduce((a, b) => a + b.rata, 0) / withN.length : null;
     table = `<div class="tbl-wrap"><table><thead><tr><th>Mata pelajaran</th><th>Guru</th><th>Status</th><th class="num">Terisi</th><th class="num" title="Tidak hadir">TH</th><th class="num">Rata-rata</th><th class="num">Std. dev</th><th class="num">Tertinggi</th><th class="num">Terendah</th><th></th></tr></thead><tbody>
-      ${r.map(x => `<tr><td><b>${esc(x.mapel)}</b></td><td>${esc(x.guru)}</td><td>${badge(x.status)}</td><td class="num">${x.terisi}/${x.total}</td><td class="num">${x.th || '–'}</td><td class="num"><b>${fmt(x.rata)}</b></td><td class="num">${fmt(x.sd)}</td><td class="num">${fmt(x.max)}</td><td class="num">${fmt(x.min)}</td><td>${x.terisi ? `<button class="btn sm" data-act="lihatNilai" data-id="${esc(x.id)}">Nilai</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">Belum ada penugasan untuk kelas ini.</td></tr>'}
+      ${r.map(x => `<tr><td><b title="${esc(x.mapel)}">${esc(x.singkat)}</b></td><td>${guruTag(x.guru, x.gurus)}</td><td>${badge(x.status)}</td><td class="num">${x.terisi}/${x.total}</td><td class="num">${x.th || '–'}</td><td class="num"><b>${fmt(x.rata)}</b></td><td class="num">${fmt(x.sd)}</td><td class="num">${fmt(x.max)}</td><td class="num">${fmt(x.min)}</td><td>${x.terisi ? `<button class="btn sm" data-act="lihatGrup" data-id="${esc(x.gid)}">Nilai</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">Belum ada penugasan untuk kelas ini.</td></tr>'}
       </tbody>${withN.length ? `<tfoot><tr><td colspan="5"><b>Rata-rata seluruh mapel</b></td><td class="num"><b>${fmt(mean)}</b></td><td colspan="4"></td></tr></tfoot>` : ''}</table></div>
-      <p class="muted small" style="margin-top:8px">Statistik dihitung dari nilai yang sudah masuk (TH = tidak hadir, tidak dihitung dalam rata-rata, standar deviasi, tertinggi, dan terendah). Standar deviasi: populasi.</p>`;
+      ${legendMapel(r)}
+      <p class="muted small" style="margin-top:8px">Statistik dihitung dari nilai yang sudah masuk (TH = tidak hadir, tidak dihitung dalam rata-rata, standar deviasi, tertinggi, dan terendah). Standar deviasi: populasi. Mapel <b>Team Teaching</b>: nilai tiap siswa adalah rata-rata nilai dari guru yang menginput (klik kode guru untuk melihat nama). Bila hanya satu guru yang menginput, nilainya dipakai apa adanya.</p>`;
   }
   return `<div class="row" style="margin-bottom:12px"><select id="fKelas" style="max-width:300px">${opts}</select><button class="btn sm" data-act="unduhRekap" ${S.rekap && S.rekap.length ? '' : 'disabled'}>⬇ Unduh Excel</button></div>${table}`;
 }
@@ -673,11 +697,11 @@ function legerCalc(g) {
   const cols = g.mapel;
   const rows = g.siswa.map(s => {
     let sum = 0, n = 0;
-    cols.forEach(c => { const v = s.nilai[c.pid]; if (typeof v === 'number') { sum += v; n++; } });
+    cols.forEach(c => { const v = s.nilai[c.gid]; if (typeof v === 'number') { sum += v; n++; } });
     return {s, sum, n, avg: n ? sum / n : null};
   });
   const stat = cols.map(c => {
-    const nums = g.siswa.map(s => s.nilai[c.pid]).filter(v => typeof v === 'number');
+    const nums = g.siswa.map(s => s.nilai[c.gid]).filter(v => typeof v === 'number');
     return nums.length ? {rata: nums.reduce((a, b) => a + b, 0) / nums.length, max: Math.max(...nums), min: Math.min(...nums)} : null;
   });
   return {rows, stat};
@@ -694,12 +718,12 @@ function legerBlock(g) {
     <div class="row between" style="margin-bottom:8px"><h2 style="margin:0">Daftar nilai kelas ${esc(g.kelas)}</h2>
       <span class="small muted">${g.siswa.length} siswa · ${cols.length} mapel${pend ? ` · <span style="color:var(--warn)">${pend} mapel belum lengkap disetor</span>` : ''}</span></div>
     <div class="tbl-wrap"><table class="lg"><thead><tr><th>No</th><th>NIS</th><th>Nama lengkap</th>
-      ${cols.map(m => `<th class="vh ${m.status !== 'Disetor' ? 'pend' : ''}" title="${esc(m.mapel)} — ${esc(m.guru)} (${esc(m.status)})"><div>${esc(m.mapel)}</div></th>`).join('')}
+      ${cols.map(m => `<th class="vh ${m.status !== 'Disetor' ? 'pend' : ''}" title="${esc(m.mapel)} — ${esc(guruNames(m))} (${esc(m.status)})"><div>${esc(m.singkat)}</div></th>`).join('')}
       <th class="num">Total nilai</th><th class="num">Rata-rata</th></tr></thead><tbody>
-      ${c.rows.map((r, i) => `<tr><td class="muted">${i + 1}</td><td class="muted">${esc(r.s.nis)}</td><td class="nm"><b>${esc(r.s.nama)}</b></td>${cols.map(m => cell(r.s.nilai[m.pid])).join('')}<td class="num"><b>${r.n ? fmt(r.sum) : '–'}</b></td><td class="num"><b>${fmt(r.avg)}</b></td></tr>`).join('')}
+      ${c.rows.map((r, i) => `<tr><td class="muted">${i + 1}</td><td class="muted">${esc(r.s.nis)}</td><td class="nm"><b>${esc(r.s.nama)}</b></td>${cols.map(m => cell(r.s.nilai[m.gid])).join('')}<td class="num"><b>${r.n ? fmt(r.sum) : '–'}</b></td><td class="num"><b>${fmt(r.avg)}</b></td></tr>`).join('')}
       ${[['Rata-rata', 'rata'], ['Tertinggi', 'max'], ['Terendah', 'min']].map(([lb, k]) => `<tr class="stat"><td colspan="3">${lb}</td>${c.stat.map(s => `<td class="num">${s ? fmt(s[k]) : '–'}</td>`).join('')}<td colspan="2"></td></tr>`).join('')}
-      <tr><td colspan="3"><b>Guru mata pelajaran</b></td>${cols.map(m => `<td class="vh"><div>${esc(m.guru)}</div></td>`).join('')}<td colspan="2"></td></tr>
-    </tbody></table></div></div>`;
+      <tr><td colspan="3"><b>Guru mata pelajaran</b></td>${cols.map(m => `<td class="vh"><div>${guruTag(m.guru, m.gurus)}</div></td>`).join('')}<td colspan="2"></td></tr>
+    </tbody></table></div>${legendMapel(cols)}</div>`;
 }
 
 function adminLeger() {
@@ -714,18 +738,18 @@ function adminLeger() {
 /* ---------- Semua kelas (matriks rata-rata kelas × mapel) ---------- */
 function semuaData() {
   const d = S.dash, kn = s => String(s).replace(/\s+/g, ' ').trim().toUpperCase();
-  const mapel = [...new Set(d.tugas.map(t => t.mapel))].sort((a, b) => a.localeCompare(b));
+  const grup = d.grup || [], mp = {};
+  grup.forEach(g => { const id = g.mapel_id || g.mapel; mp[id] = {id, nama: g.mapel, singkat: g.singkat}; });
+  const mapel = Object.values(mp).sort((a, b) => a.singkat.localeCompare(b.singkat));
   const rows = d.kelas.map(k => {
-    const ts = d.tugas.filter(t => kn(t.kelas) === kn(k.nama));
-    const cells = mapel.map(mn => {
-      const tm = ts.filter(t => t.mapel === mn);
-      if (!tm.length) return null;
-      const w = tm.filter(t => t.rata != null), n = w.reduce((a, t) => a + t.n, 0);
-      return {rata: n ? w.reduce((a, t) => a + t.rata * t.n, 0) / n : null, n, done: tm.every(t => t.status === 'Disetor'), guru: [...new Set(tm.map(t => t.guru))].join(', ')};
+    const gs = grup.filter(g => kn(g.kelas) === kn(k.nama));
+    const cells = mapel.map(m => {
+      const g = gs.filter(x => (x.mapel_id || x.mapel) === m.id)[0];
+      return g ? {rata: g.rata, n: g.n, done: g.status === 'Disetor', guru: g.guru} : null;
     });
     const got = cells.filter(c => c && c.rata != null);
     return {kelas: k.nama, siswa: k.siswa, cells, avg: got.length ? got.reduce((a, c) => a + c.rata, 0) / got.length : null,
-      progres: `${ts.filter(t => t.status === 'Disetor').length}/${ts.length}`};
+      progres: `${gs.filter(g => g.status === 'Disetor').length}/${gs.length}`};
   });
   const foot = mapel.map((_, j) => { let s = 0, n = 0; rows.forEach(r => { const c = r.cells[j]; if (c && c.rata != null) { s += c.rata * c.n; n += c.n; } }); return n ? s / n : null; });
   const av = rows.filter(r => r.avg != null);
@@ -739,13 +763,14 @@ function adminSemua() {
       <button class="btn sm" data-act="unduhSemua">⬇ Unduh rekap (Excel)</button>
       <button class="btn sm" data-act="unduhLengkap">⬇ Unduh lengkap: rekap + nilai siswa semua kelas</button></div>
     <div class="tbl-wrap"><table class="lg"><thead><tr><th>Kelas</th><th class="num">Siswa</th>
-      ${m.mapel.map(n => `<th class="vh"><div>${esc(n)}</div></th>`).join('')}
+      ${m.mapel.map(n => `<th class="vh" title="${esc(n.nama)}"><div>${esc(n.singkat)}</div></th>`).join('')}
       <th class="num">Rata-rata seluruh mapel</th><th class="num">Disetor</th></tr></thead><tbody>
       ${m.rows.map(r => `<tr><td><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button></td><td class="num">${r.siswa}</td>
         ${r.cells.map(c => !c ? '<td class="num muted">·</td>' : `<td class="num ${c.done ? '' : 'pc'}" title="${esc(c.guru)} · ${c.n} siswa${c.done ? '' : ' · belum lengkap disetor'}">${fmt(c.rata)}</td>`).join('')}
         <td class="num"><b>${fmt(r.avg)}</b></td><td class="num">${esc(r.progres)}</td></tr>`).join('')}
       <tr class="stat"><td colspan="2">Rata-rata semua kelas</td>${m.foot.map(v => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num">${fmt(m.footAvg)}</td><td></td></tr>
     </tbody></table></div>
+    ${legendMapel(m.mapel.map(x => ({singkat: x.singkat, mapel: x.nama})))}
     <p class="muted small" style="margin-top:8px">Setiap sel adalah rata-rata nilai kelas pada mapel tersebut. <b>·</b> = mapel tidak diajarkan di kelas itu. Latar kuning = belum seluruhnya disetor. Baris bawah dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
 }
 
@@ -756,18 +781,20 @@ function legerAoa(g) {
   const c = legerCalc(g), cols = g.mapel;
   const stat = (label, k) => [label, '', '', '', ...c.stat.map(s => s ? r2(s[k]) : ''), '', ''];
   return [['DAFTAR NILAI KELAS ' + g.kelas.toUpperCase()], [],
-    ['No', 'Kelas', 'NIS', 'Nama Lengkap', ...cols.map(m => m.mapel), 'Total Nilai', 'Rata-rata'],
-    ...c.rows.map((r, i) => [i + 1, g.kelas, r.s.nis, r.s.nama, ...cols.map(m => { const v = r.s.nilai[m.pid]; return v === undefined ? '' : v; }), r.n ? r2(r.sum) : '', r2(r.avg)]),
+    ['No', 'Kelas', 'NIS', 'Nama Lengkap', ...cols.map(m => m.singkat), 'Total Nilai', 'Rata-rata'],
+    ...c.rows.map((r, i) => [i + 1, g.kelas, r.s.nis, r.s.nama, ...cols.map(m => { const v = r.s.nilai[m.gid]; return v === undefined ? '' : v; }), r.n ? r2(r.sum) : '', r2(r.avg)]),
     [], stat('Rata-rata', 'rata'), stat('Tertinggi', 'max'), stat('Terendah', 'min'), [],
-    ['Guru Mata Pelajaran', '', '', '', ...cols.map(m => m.guru)]];
+    ['Guru Mata Pelajaran', '', '', '', ...cols.map(m => m.guru)],
+    ...ketAoa(cols)];
 }
 
 function semuaAoa() {
   const m = semuaData();
   return [['REKAP RATA-RATA NILAI SEMUA KELAS'], [],
-    ['Kelas', 'Jumlah Siswa', ...m.mapel, 'Rata-rata Seluruh Mapel', 'Disetor'],
+    ['Kelas', 'Jumlah Siswa', ...m.mapel.map(x => x.singkat), 'Rata-rata Seluruh Mapel', 'Disetor'],
     ...m.rows.map(r => [r.kelas, r.siswa, ...r.cells.map(c => c && c.rata != null ? r2(c.rata) : ''), r2(r.avg), r.progres]),
-    [], ['Rata-rata semua kelas', '', ...m.foot.map(r2), r2(m.footAvg), '']];
+    [], ['Rata-rata semua kelas', '', ...m.foot.map(r2), r2(m.footAvg), ''],
+    ...ketAoa(m.mapel.map(x => ({singkat: x.singkat, mapel: x.nama})))];
 }
 
 function addSheet(wb, aoa, name, used, firstW) {
@@ -808,9 +835,9 @@ async function unduhLengkap() {
 
 function adminData() {
   const d = S.dash;
-  const rows = d.tugas.map(t => `<tr><td>${esc(t.id)}</td><td>${esc(t.guru)}</td><td>${esc(t.mapel)}</td><td>${esc(t.kelas)}</td><td class="num">${t.total}</td><td>${badge(t.status)}</td></tr>`).join('');
+  const rows = d.tugas.map(t => `<tr><td>${esc(t.id)}</td><td><b>${esc(t.kode)}</b> — ${esc(t.guru)}</td><td>${esc(t.mapel)} <span class="muted small">(${esc(t.singkat)})</span></td><td>${esc(t.kelas)}</td><td class="num">${t.total}</td><td>${badge(t.status)}</td></tr>`).join('');
   return `<div class="card"><h2>Kelola data master</h2>
-    <p class="muted">Data guru, mapel, siswa, dan penugasan dikelola langsung di Google Spreadsheet (impor/salin-tempel dari data sekolah). Perubahan langsung tampil di aplikasi.</p>
+    <p class="muted">Data guru, mapel, siswa, dan penugasan dikelola langsung di Google Spreadsheet (impor/salin-tempel dari data sekolah). Perubahan langsung tampil di aplikasi. Kode guru &amp; singkatan mapel diatur di kolom <b>kode</b> (sheet Guru) dan <b>singkatan</b> (sheet Mapel); isi otomatis lewat menu <b>Setor Nilai › 3. Isi kode guru &amp; singkatan mapel otomatis</b>. Beberapa baris Penugasan dengan mapel &amp; kelas yang sama = Team Teaching.</p>
     <a class="btn primary" href="${esc(d.sheetUrl)}" target="_blank" rel="noopener">Buka Spreadsheet ↗</a></div>
     <h2>Daftar penugasan (${d.tugas.length})</h2>
     <div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Guru</th><th>Mapel</th><th>Kelas</th><th class="num">Siswa</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -852,11 +879,28 @@ async function lihatNilai(pid) {
   });
 }
 
+async function lihatGrup(gid) {
+  await run(async () => {
+    const d = await api('grupDetail', {gid}, true);
+    const team = d.kolom.length > 1, g = d.grup;
+    const nums = d.siswa.map(s => s.nilai).filter(v => typeof v === 'number');
+    const mean = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+    const cell = v => v === '' ? '<span class="muted">–</span>' : (typeof v === 'number' ? fmt(v) : esc(v));
+    openModal(`<h2>${esc(g.mapel)} (${esc(g.singkat)}) · ${esc(g.kelas)}</h2>
+      <p class="muted small">Guru: ${guruTag(g.guru, g.gurus)} · ${badge(g.status)}${mean != null ? ` · rata-rata ${fmt(mean)}` : ''}</p>
+      ${team ? '<p class="small muted">Nilai akhir = rata-rata nilai tiap guru. Guru yang tidak menginput diwakilkan (nilai guru lain dipakai apa adanya).</p>' : ''}
+      <div class="tbl-wrap"><table><thead><tr><th>Siswa</th>${team ? d.kolom.map(k => `<th class="num" title="${esc(k.nama)}">${esc(k.kode)}</th>`).join('') : ''}<th class="num">Nilai akhir</th></tr></thead><tbody>
+      ${d.siswa.map(s => `<tr><td>${esc(s.nama)}<div class="muted small">${esc(s.nis)}</div></td>${team ? s.per.map(v => `<td class="num">${cell(v)}</td>`).join('') : ''}<td class="num"><b>${cell(s.nilai)}</b></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" data-act="closeModal">Tutup</button></div>`);
+  });
+}
+
 function unduhRekap() {
-  const aoa = [['Kelas', S.kelasSel], [], ['Mata Pelajaran', 'Guru', 'Status', 'Terisi', 'Jumlah Siswa', 'TH (Tidak Hadir)', 'Rata-rata', 'Std. Deviasi', 'Tertinggi', 'Terendah']]
-    .concat(S.rekap.map(x => [x.mapel, x.guru, x.status, x.terisi, x.total, x.th || 0, x.rata, x.sd, x.max, x.min]));
+  const aoa = [['Kelas', S.kelasSel], [], ['Mapel (Singkatan)', 'Nama Mapel', 'Guru', 'Keterangan Guru', 'Status', 'Terisi', 'Jumlah Siswa', 'TH (Tidak Hadir)', 'Rata-rata', 'Std. Deviasi', 'Tertinggi', 'Terendah']]
+    .concat(S.rekap.map(x => [x.singkat, x.mapel, x.guru, guruNames(x), x.status, x.terisi, x.total, x.th || 0, x.rata, x.sd, x.max, x.min]));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch: 30}, {wch: 28}, {wch: 10}, {wch: 8}, {wch: 12}, {wch: 16}, {wch: 10}, {wch: 12}, {wch: 10}, {wch: 10}];
+  ws['!cols'] = [{wch: 16}, {wch: 30}, {wch: 14}, {wch: 40}, {wch: 10}, {wch: 8}, {wch: 12}, {wch: 16}, {wch: 10}, {wch: 12}, {wch: 10}, {wch: 10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Rekap');
   XLSX.writeFile(wb, `Rekap_Nilai_${S.kelasSel}`.replace(/[^\w\-]+/g, '_') + '.xlsx');
@@ -890,7 +934,6 @@ const ACT = {
     document.getElementById('rows').innerHTML = rowsHtml();
     updateStats();
   },
-  mode: el => { S.mode = el.dataset.m; renderGuru(); updateStats(); },
   template: () => unduhTemplate(),
   impor: () => document.getElementById('fileImpor').click(),
   simpan: () => simpanDraft(),
@@ -918,6 +961,15 @@ const ACT = {
   detailGuru: el => { const id = el.dataset.id; S.expand.has(id) ? S.expand.delete(id) : S.expand.add(id); renderAdmin(); },
   ingatkan: el => ingatkan(el.dataset.id),
   lihatNilai: el => lihatNilai(el.dataset.id),
+  lihatGrup: el => lihatGrup(el.dataset.id),
+  infoGuru: el => {
+    let arr = [];
+    try { arr = JSON.parse(el.dataset.g || '[]'); } catch (e) { /* abaikan */ }
+    openModal(`<h2>${esc(el.dataset.l)}</h2>
+      ${el.dataset.l === 'Team Teaching' ? '<p class="muted small">Mapel ini diajar bersama. Nilai akhir siswa = rata-rata nilai dari guru yang menginput.</p>' : ''}
+      <ul class="feed">${arr.map(g => `<li><b>${esc(g.k)}</b> — ${esc(g.n)}${g.p ? `<div class="muted small">${esc(g.p)}</div>` : ''}</li>`).join('')}</ul>
+      <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" data-act="closeModal">Tutup</button></div>`);
+  },
   unduhRekap: () => unduhRekap(),
   unduhLeger: () => unduhLeger(),
   unduhSemua: () => unduhSemua(),
