@@ -198,6 +198,9 @@ table.lg th,table.lg td{padding:6px 8px;font-size:13px}
 table.lg th.vh,table.lg td.vh{padding:6px 2px}
 table.lg th.num,table.lg td.num{padding:6px 7px}
 table.lg td.nm,table.lg td.kl{white-space:nowrap}
+.pager{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:10px}
+.pager select{display:inline-block;width:auto;padding:4px 8px;margin:0 4px}
+.pager .grow{flex:1 1 auto;text-align:center}
 .abbr{margin-top:14px;padding:13px 15px;background:var(--card);border:1px solid var(--line);border-radius:10px}
 .abbr h4{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
 .abbr ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 20px}
@@ -282,7 +285,7 @@ const S = {
   view: 'login', guru: null, tugas: [], cur: null, rows: [], locked: false, dirty: false,
   adminToken: sessionStorage.getItem('adm_tok') || '', dash: null, tab: 'dashboard',
   legerSel: '', leger: null, legerKey: null,
-  expand: new Set(), filter: 'belum', q: '', kelasSel: '', rekap: null, timer: null
+  expand: new Set(), filter: 'belum', q: '', qData: '', pg: {progres: {n: 10, p: 0}, data: {n: 10, p: 0}}, kelasSel: '', rekap: null, timer: null
 };
 
 /* Loading: SATU elemen (#loader) dengan penghitung. Layar penuh saat pertama kali, lalu pil kecil.
@@ -894,13 +897,29 @@ function guruStatus(g) {
   return '<span class="badge b-Belum">Belum mulai</span>';
 }
 
+const PG_OPSI = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200];
+// Paginasi: kembalikan potongan list + HTML kontrol (key = 'progres' | 'data')
+function paginasi(key, list) {
+  const st = S.pg[key], tot = list.length, hal = Math.max(1, Math.ceil(tot / st.n));
+  if (st.p > hal - 1) st.p = hal - 1;
+  if (st.p < 0) st.p = 0;
+  const a = st.p * st.n, b = Math.min(a + st.n, tot);
+  const ctl = `<div class="pager"><label class="small muted">Tampilkan <select data-pgsize="${key}">${PG_OPSI.map(o => `<option value="${o}" ${o === st.n ? 'selected' : ''}>${o}</option>`).join('')}</select> per halaman</label>
+    <span class="small muted grow">${tot ? `${a + 1}–${b} dari ${tot}` : '0 data'}</span>
+    <button class="btn sm" data-act="pgPrev" data-k="${key}" ${st.p <= 0 ? 'disabled' : ''}>‹ Sebelumnya</button>
+    <span class="small muted">Hal. ${st.p + 1}/${hal}</span>
+    <button class="btn sm" data-act="pgNext" data-k="${key}" ${st.p >= hal - 1 ? 'disabled' : ''}>Selanjutnya ›</button></div>`;
+  return {items: list.slice(a, b), ctl};
+}
+
 function adminProgres() {
   let list = guruProgress();
   if (S.filter === 'belum') list = list.filter(g => !g.complete);
   else if (S.filter === 'selesai') list = list.filter(g => g.complete);
   if (S.q) list = list.filter(g => g.nama.toLowerCase().includes(S.q.toLowerCase()));
   list.sort((a, b) => (a.done / a.total) - (b.done / b.total) || a.nama.localeCompare(b.nama));
-  const rows = list.map(g => {
+  const pgP = paginasi('progres', list);
+  const rows = pgP.items.map(g => {
     const open = S.expand.has(g.id);
     return `<tr>
       <td><b>${esc(g.nama)}</b><div class="muted small">${esc(g.program)}</div></td>
@@ -918,7 +937,7 @@ function adminProgres() {
       <input id="fCari" placeholder="Cari nama guru…" value="${esc(S.q)}" style="max-width:260px">
       <span class="muted small">${list.length} guru</span>
     </div>
-    <div class="tbl-wrap"><table><thead><tr><th>Guru</th><th>Progres</th><th class="hide-sm">Status</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">Tidak ada data.</td></tr>'}</tbody></table></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>Guru</th><th>Progres</th><th class="hide-sm">Status</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="muted">Tidak ada data.</td></tr>'}</tbody></table></div>${pgP.ctl}`;
 }
 
 function adminKelas() {
@@ -1086,7 +1105,10 @@ async function unduhLengkap() {
 
 function adminData() {
   const d = S.dash;
-  const rows = d.tugas.map(t => `<tr><td>${esc(t.id)}</td><td><b>${esc(t.kode)}</b></td><td>${esc(t.guru)}</td><td><b>${esc(t.singkat)}</b></td><td>${esc(t.mapel)}</td><td>${esc(t.kelas)}</td><td class="num">${t.total}</td><td>${badge(t.status)}</td></tr>`).join('');
+  const q = S.qData.trim().toLowerCase();
+  const tugas = q ? d.tugas.filter(t => [t.id, t.kode, t.guru, t.singkat, t.mapel, t.kelas, t.status].some(v => String(v == null ? '' : v).toLowerCase().includes(q))) : d.tugas;
+  const pgD = paginasi('data', tugas);
+  const rows = pgD.items.map(t => `<tr><td>${esc(t.id)}</td><td><b>${esc(t.kode)}</b></td><td>${esc(t.guru)}</td><td><b>${esc(t.singkat)}</b></td><td>${esc(t.mapel)}</td><td>${esc(t.kelas)}</td><td class="num">${t.total}</td><td>${badge(t.status)}</td></tr>`).join('');
   return `<div class="card"><h2>Kelola data master</h2>
     <p class="muted">Data guru, mapel, siswa, dan penugasan dikelola langsung di Google Spreadsheet. Perubahan langsung tampil di aplikasi.</p>
     <ul class="note" style="margin:0 0 16px;padding-left:20px">
@@ -1096,8 +1118,9 @@ function adminData() {
       <li><b>Team Teaching</b>: beberapa baris Penugasan dengan mapel &amp; kelas yang sama.</li>
     </ul>
     <a class="btn primary" href="${esc(d.sheetUrl)}" target="_blank" rel="noopener">Buka Spreadsheet ↗</a></div>
-    <h2>Daftar penugasan (${d.tugas.length})</h2>
-    <div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Kode guru</th><th>Nama guru</th><th>Singkatan</th><th>Mapel</th><th>Kelas</th><th class="num">Siswa</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="row between" style="margin-bottom:8px"><h2 style="margin:0">Daftar penugasan (${q ? tugas.length + ' dari ' + d.tugas.length : d.tugas.length})</h2>
+      <input id="fCariData" type="search" placeholder="Cari guru, mapel, kelas, status…" value="${esc(S.qData)}" style="max-width:300px"></div>
+    <div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Kode guru</th><th>Nama guru</th><th>Singkatan</th><th>Mapel</th><th>Kelas</th><th class="num">Siswa</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="8" class="muted">Tidak ada data yang cocok.</td></tr>'}</tbody></table></div>${pgD.ctl}`;
 }
 
 async function loadRekap() {
@@ -1230,6 +1253,8 @@ const ACT = {
   },
   unduhRekap: () => unduhRekap(),
   unduhLeger: () => unduhLeger(),
+  pgPrev: el => { S.pg[el.dataset.k].p--; renderAdmin(); },
+  pgNext: el => { S.pg[el.dataset.k].p++; renderAdmin(); },
   unduhSemua: () => unduhSemua(),
   unduhLengkap: () => unduhLengkap(),
   keLeger: el => { S.legerSel = el.dataset.k; S.legerKey = null; S.leger = null; S.tab = 'leger'; renderAdmin(); },
@@ -1251,14 +1276,18 @@ document.addEventListener('input', e => {
     e.target.classList.toggle('ok', !p.empty && !p.bad && !p.th);
     updateStats();
   } else if (e.target.id === 'fCari') {
-    S.q = e.target.value; const pos = e.target.selectionStart; renderAdmin();
+    S.q = e.target.value; S.pg.progres.p = 0; const pos = e.target.selectionStart; renderAdmin();
     const n = document.getElementById('fCari'); if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+  } else if (e.target.id === 'fCariData') {
+    S.qData = e.target.value; S.pg.data.p = 0; const pos = e.target.selectionStart; renderAdmin();
+    const n = document.getElementById('fCariData'); if (n) { n.focus(); n.setSelectionRange(pos, pos); }
   }
 });
 
 document.addEventListener('change', e => {
   if (e.target.id === 'fileImpor' && e.target.files[0]) { imporFile(e.target.files[0]); e.target.value = ''; }
-  else if (e.target.id === 'fFilter') { S.filter = e.target.value; renderAdmin(); }
+  else if (e.target.id === 'fFilter') { S.filter = e.target.value; S.pg.progres.p = 0; renderAdmin(); }
+  else if (e.target.dataset.pgsize) { const st = S.pg[e.target.dataset.pgsize]; st.n = +e.target.value; st.p = 0; renderAdmin(); }
   else if (e.target.id === 'fLeger') { S.legerSel = e.target.value; S.legerKey = null; S.leger = null; renderAdmin(); }
   else if (e.target.id === 'fKelas') { S.kelasSel = e.target.value; S.rekap = null; renderAdmin(); }
 });
