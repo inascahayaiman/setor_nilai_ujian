@@ -111,6 +111,19 @@ input:disabled{background:var(--gray-l);color:var(--muted)}
 .stat:hover{box-shadow:0 6px 18px rgba(18,48,79,.14);transform:translateY(-2px)}
 .stat b{display:block;font-size:28px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums;color:var(--navy)}
 .stat span{color:var(--muted);font-size:13px}
+/* kartu dashboard berwarna */
+.kpi{border:0;color:#fff;overflow:hidden;padding:18px 16px 16px;background:linear-gradient(135deg,var(--g1),var(--g2));box-shadow:0 8px 18px -6px var(--g2)}
+.kpi:hover{box-shadow:0 12px 24px -6px var(--g2)}
+.kpi b{color:#fff;font-size:34px;position:relative;z-index:1}
+.kpi span{color:rgba(255,255,255,.94);font-weight:500;position:relative;z-index:1}
+.kpi .ic{position:absolute;right:12px;top:10px;font-size:32px;line-height:1;opacity:.35;z-index:1}
+.kpi::after{content:"";position:absolute;right:-26px;bottom:-34px;width:104px;height:104px;border-radius:50%;background:rgba(255,255,255,.15)}
+.kpi::before{content:"";position:absolute;right:34px;bottom:-14px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.1)}
+.k1{--g1:#3b8eea;--g2:#1b4fb3}.k2{--g1:#9b6cf7;--g2:#6d28d9}.k3{--g1:#19c0a8;--g2:#0f766e}.k4{--g1:#fb923c;--g2:#c2410c}.k5{--g1:#f2599f;--g2:#be185d}
+.card.cc{border-top:4px solid var(--cc)}
+.card.cc>h2:first-child,.card.cc .row.between>h2{color:var(--cc)}
+.cc1{--cc:#16a34a}.cc2{--cc:#7c3aed}.cc3{--cc:#ea580c}
+:root[data-theme=dark] .cc1{--cc:#4ade80}:root[data-theme=dark] .cc2{--cc:#b794f6}:root[data-theme=dark] .cc3{--cc:#fdba74}
 /* tab */
 .tabs{display:flex;gap:4px;overflow-x:auto;padding:0;margin:0 0 14px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;scrollbar-width:none}
 .tab{padding:10px 14px;border:0;border-bottom:3px solid transparent;border-radius:0;background:none;font:inherit;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
@@ -870,22 +883,22 @@ function adminDashboard() {
   ev.sort((a, b) => b.t.localeCompare(a.t));
   return `
     <div class="stats">
-      <div class="stat"><b>${c.guru}</b><span>Guru</span></div>
-      <div class="stat"><b>${c.mapel}</b><span>Mata pelajaran</span></div>
-      <div class="stat"><b>${c.kelas}</b><span>Kelas</span></div>
-      <div class="stat"><b>${c.siswa}</b><span>Siswa</span></div>
-      <div class="stat"><b>${c.penugasan}</b><span>Penugasan (guru × mapel × kelas)</span></div>
+      <div class="stat kpi k1"><i class="ic">👩‍🏫</i><b>${c.guru}</b><span>Guru</span></div>
+      <div class="stat kpi k2"><i class="ic">📚</i><b>${c.mapel}</b><span>Mata pelajaran</span></div>
+      <div class="stat kpi k3"><i class="ic">🏫</i><b>${c.kelas}</b><span>Kelas</span></div>
+      <div class="stat kpi k4"><i class="ic">🎓</i><b>${c.siswa}</b><span>Siswa</span></div>
+      <div class="stat kpi k5"><i class="ic">📝</i><b>${c.penugasan}</b><span>Penugasan (guru × mapel × kelas)</span></div>
     </div>
-    <div class="card">
-      <div class="row between"><h2 style="margin:0">Progres keseluruhan</h2><b>${n ? Math.round(done / n * 100) : 0}%</b></div>
+    <div class="card cc cc1">
+      <div class="row between"><h2 style="margin:0">📊 Progres keseluruhan</h2><b>${n ? Math.round(done / n * 100) : 0}%</b></div>
       <div style="margin:12px 0">${progBar(done, draft, n)}</div>
       <div class="row small"><span class="badge b-Disetor">Disetor ${done}</span><span class="badge b-Draft">Draft ${draft}</span><span class="badge b-Belum">Belum ${belum}</span><span class="muted">· Guru selesai ${selesai} dari ${gp.length}</span></div>
     </div>
-    <div class="card">
-      <h2>Link untuk dibagikan ke guru</h2>
+    <div class="card cc cc2">
+      <h2>🔗 Link untuk dibagikan ke guru</h2>
       <div class="linkbox"><input id="linkGuru" readonly value="${esc(guruLink())}"><button class="btn" data-act="salinLink">Salin</button></div>
     </div>
-    <div class="card"><h2>Aktivitas terbaru</h2>
+    <div class="card cc cc3"><h2>🔔 Aktivitas terbaru</h2>
       ${ev.length ? `<ul class="feed">${ev.slice(0, 10).map(e => `<li>${e.txt}<div class="muted small">${fmtTime(e.t)}</div></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Belum ada setoran masuk.</p>'}
     </div>`;
 }
