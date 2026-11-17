@@ -25,7 +25,7 @@ document.documentElement.setAttribute('data-theme',t);})();
   --ok:#1b7f4b;--ok-l:#dff5e8;--warn:#8a5a00;--warn-l:#fff1c9;--bad:#b3261e;--bad-l:#fde4e2;
   --gray-l:#f3f7fc;--field:#fff;--r:10px;--sh:0 1px 4px rgba(18,48,79,.07);--glow:0 12px 40px rgba(0,0,0,.22);
   --fd:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  --hdr:#fff;--thead:#eaf1f8;--hover:rgba(11,93,176,.035);--dirty:#fff6d6
+  --grid:#c3cfdc;--hdr:#fff;--thead:#eaf1f8;--hover:rgba(11,93,176,.035);--dirty:#fff6d6
 }
 :root[data-theme=dark]{
   --bg:#0e1621;--bg2:#121c29;--card:#16212f;--card-s:#16212f;--ink:#e5ecf4;--muted:#93a4b7;--line:#283547;
@@ -33,7 +33,7 @@ document.documentElement.setAttribute('data-theme',t);})();
   --navy:#cfe0f5;
   --ok:#9be0b8;--ok-l:#173a28;--warn:#f0dc9a;--warn-l:#3a3213;--bad:#f5b3ae;--bad-l:#4a1e1b;
   --gray-l:#1a2736;--field:#0e1621;--sh:0 1px 4px rgba(0,0,0,.35);--glow:0 12px 40px rgba(0,0,0,.5);
-  --hdr:#121c29;--thead:#1d2b3d;--hover:rgba(90,163,240,.06);--dirty:#4a4220
+  --grid:#3a4b62;--hdr:#121c29;--thead:#1d2b3d;--hover:rgba(90,163,240,.06);--dirty:#4a4220
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
@@ -122,10 +122,14 @@ input:disabled{background:var(--gray-l);color:var(--muted)}
 /* tabel */
 .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
 table{width:100%;border-collapse:collapse}
-th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th,td{padding:8px 11px;text-align:left;border:1px solid var(--grid);vertical-align:middle}
+thead th{border-top:0}
+th:first-child,td:first-child{border-left:0}
+th:last-child,td:last-child{border-right:0}
 th{font-size:12.5px;color:var(--muted);background:var(--thead);white-space:nowrap}
 tbody tr:hover td{background:var(--hover)}
 tr:last-child td{border-bottom:0}
+table{border-style:hidden}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .task{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
 .task:first-of-type{border-top:0}
@@ -194,6 +198,12 @@ table.lg th,table.lg td{padding:6px 8px;font-size:13px}
 table.lg th.vh,table.lg td.vh{padding:6px 2px}
 table.lg th.num,table.lg td.num{padding:6px 7px}
 table.lg td.nm,table.lg td.kl{white-space:nowrap}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:16px;align-items:start;margin-top:4px}
+.kblk{margin:0}
+.kblk .kh{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:8px}
+.kblk .kh .linkbtn{font-size:16px}
+.kblk .km{font-size:12.5px;color:var(--muted)}
+table.lg td.mp{white-space:normal;font-weight:600;color:var(--navy)}
 .abbr{margin-top:14px;padding:13px 15px;background:var(--card);border:1px solid var(--line);border-radius:10px}
 .abbr h4{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
 .abbr ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 20px}
@@ -205,7 +215,7 @@ th.pend{background:var(--warn-l);color:var(--warn)}
 td.pc{background:var(--warn-l)}
 tr.stat{display:table-row;border:0;border-radius:0;box-shadow:none;padding:0;background:none;transform:none!important;transition:none}
 tr.stat:hover{transform:none!important;box-shadow:none}
-tr.stat td{background:var(--thead);font-weight:600;color:var(--navy);border-bottom:1px solid var(--line)}
+tr.stat td{background:var(--thead);font-weight:600;color:var(--navy)}
 tr.stat td:first-child{border-left:0}
 tr.stat td.num{font-weight:700}
 tr.stat:hover td{background:var(--thead)}
@@ -353,11 +363,24 @@ function guruTag(label, gurus) {
   return `<button class="linkbtn" data-act="infoGuru" data-l="${esc(label)}" data-g="${esc(JSON.stringify(arr))}" title="Klik untuk melihat nama guru">${esc(label)}</button>`;
 }
 const guruNames = x => (x.gurus || []).map(g => g.kode + ' - ' + g.nama).join('; ');
+// Urutan mapel baku (sesuai spreadsheet)
+const MAPEL_URUT = ['Pendidikan Agama Islam dan Budi Pekerti','Pendidikan Pancasila','Bahasa Indonesia','Pendidikan Jasmani, Olahraga, dan Kesehatan','Sejarah','Seni Budaya','Matematika','Bahasa Inggris','Projek Ilmu Pengetahuan Alam dan Sosial','Bahasa Jepang','Bahasa Jawa','Informatika','Kreativitas, Inovasi, dan Kewirausahaan','Dasar-dasar Agribisnis Perikanan','Dasar-dasar Agribisnis Ternak','Dasar-dasar Agriteknologi Pengolahan Hasil Pertanian','Dasar-dasar Teknik Otomotif','Dasar-dasar Pengembangan Perangkat Lunak dan Gim','Agribisnis Perikanan Air Tawar','Agribisnis Ternak Unggas','Agribisnis Pengolahan Hasil Pertanian','Teknik Kendaraan Ringan','Rekayasa Perangkat Lunak','Koding dan Kecerdasan Artifisial','Agribisnis Ikan Hias','Agribisnis Ternak Ruminansia','Agribisnis Tanaman Pangan dan Holtikultura','Teknik Sepeda Motor','Animasi'];
+const SINGKAT_URUT = ['PAIBP','PP','BIND','PJOK','SEJARAH','SENBUD','MTK','BING','PIPAS','BJEP','BJAW','INFO','KIK','DDAP','DDAT','DDAPHP','DDTO','DDPPLG','APAT','ATU','APHP','TKR','RPL','KKA','AIH','ATR','ATPH','TSM','ANIMASI'];
+const normMapel = t => String(t || '').toLowerCase().replace(/hortikultura/g, 'holtikultura').replace(/\bgame\b/g, 'gim').replace(/[^a-z]/g, '');
+const MAPEL_KEY = MAPEL_URUT.map(normMapel);
+function mapelRank(x) {
+  let i = MAPEL_KEY.indexOf(normMapel(x.mapel || x.nama));
+  if (i < 0) i = SINGKAT_URUT.indexOf(String(x.singkat || '').toUpperCase());
+  return i < 0 ? 999 : i;
+}
+const urutMapel = a => (a || []).slice().sort((x, y) => mapelRank(x) - mapelRank(y) || String(x.singkat || '').localeCompare(String(y.singkat || '')));
+const urutLeger = l => (l || []).map(g => Object.assign({}, g, {mapel: urutMapel(g.mapel)}));
+
 // Keterangan singkatan mapel (list berisi {singkat, mapel})
 function legendMapel(list) {
   const m = {};
   (list || []).forEach(x => { if (x.singkat) m[x.singkat] = x.mapel; });
-  const k = Object.keys(m).sort((a, b) => a.localeCompare(b));
+  const k = Object.keys(m).sort((a, b) => mapelRank({mapel: m[a], singkat: a}) - mapelRank({mapel: m[b], singkat: b}) || a.localeCompare(b));
   if (!k.length) return '';
   return `<div class="abbr"><h4>Keterangan singkatan mapel</h4><ul>${k.map(s => `<li><b>${esc(s)}</b><span>${esc(m[s])}</span></li>`).join('')}</ul></div>`;
 }
@@ -923,7 +946,7 @@ function adminKelas() {
 async function loadLeger() {
   S.legerKey = S.legerSel;
   S.leger = null;
-  await run(async () => { S.leger = await api('leger', {kelas: S.legerSel}, true); });
+  await run(async () => { S.leger = urutLeger(await api('leger', {kelas: S.legerSel}, true)); });
   renderAdmin();
 }
 
@@ -974,7 +997,7 @@ function semuaData() {
   const d = S.dash, kn = s => String(s).replace(/\s+/g, ' ').trim().toUpperCase();
   const grup = d.grup || [], mp = {};
   grup.forEach(g => { const id = g.mapel_id || g.mapel; mp[id] = {id, nama: g.mapel, singkat: g.singkat}; });
-  const mapel = Object.values(mp).sort((a, b) => a.singkat.localeCompare(b.singkat));
+  const mapel = urutMapel(Object.values(mp));
   const rows = d.kelas.map(k => {
     const gs = grup.filter(g => kn(g.kelas) === kn(k.nama));
     const cells = mapel.map(m => {
@@ -982,30 +1005,38 @@ function semuaData() {
       return g ? {rata: g.rata, n: g.n, done: g.status === 'Disetor', guru: g.guru} : null;
     });
     const got = cells.filter(c => c && c.rata != null);
-    return {kelas: k.nama, siswa: k.siswa, cells, avg: got.length ? got.reduce((a, c) => a + c.rata, 0) / got.length : null,
+    const daftar = urutMapel(gs.map(g => ({mapel: g.mapel, singkat: g.singkat, rata: g.rata, n: g.n, status: g.status, guru: g.guru})));
+    return {kelas: k.nama, siswa: k.siswa, cells, daftar, avg: got.length ? got.reduce((a, c) => a + c.rata, 0) / got.length : null,
       progres: `${gs.filter(g => g.status === 'Disetor').length}/${gs.length}`};
   });
   const foot = mapel.map((_, j) => { let s = 0, n = 0; rows.forEach(r => { const c = r.cells[j]; if (c && c.rata != null) { s += c.rata * c.n; n += c.n; } }); return n ? s / n : null; });
   const av = rows.filter(r => r.avg != null);
-  return {mapel, rows, foot, footAvg: av.length ? av.reduce((a, r) => a + r.avg, 0) / av.length : null};
+  const jml = mapel.map((_, j) => rows.filter(r => r.cells[j]).length);
+  return {mapel, jml, rows, foot, footAvg: av.length ? av.reduce((a, r) => a + r.avg, 0) / av.length : null};
 }
 
 function adminSemua() {
   const m = semuaData();
   if (!m.rows.length) return '<p class="muted">Belum ada data kelas.</p>';
+  const ringkas = `<div class="tbl-wrap"><table class="lg"><thead><tr><th class="num">No</th><th>Mata pelajaran</th><th class="num">Jumlah kelas</th><th class="num">Rata-rata</th></tr></thead><tbody>
+      ${m.mapel.map((x, j) => `<tr><td class="num muted">${j + 1}</td><td class="mp">${esc(x.nama)}</td><td class="num">${m.jml[j]}</td><td class="num"><b>${fmt(m.foot[j])}</b></td></tr>`).join('')}
+      <tr class="stat"><td colspan="3">Rata-rata semua kelas</td><td class="num">${fmt(m.footAvg)}</td></tr>
+    </tbody></table></div>`;
+  const blok = r => `<div class="kblk">
+      <div class="kh"><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button>
+        <span class="km">${r.siswa} siswa · ${r.daftar.length} mapel · disetor ${esc(r.progres)} · rata-rata <b>${fmt(r.avg)}</b></span></div>
+      ${r.daftar.length ? `<div class="tbl-wrap"><table class="lg"><thead><tr><th class="num">No</th><th>Mata pelajaran</th><th>Guru</th><th class="num">Siswa</th><th class="num">Rata-rata</th><th>Status</th></tr></thead><tbody>
+        ${r.daftar.map((g, i) => `<tr><td class="num muted">${i + 1}</td><td class="mp" title="${esc(g.singkat)}">${esc(g.mapel)}</td><td class="small">${esc(g.guru)}</td><td class="num">${g.n == null ? '–' : g.n}</td><td class="num ${g.status === 'Disetor' ? '' : 'pc'}"><b>${fmt(g.rata)}</b></td><td>${badge(g.status)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="muted small" style="margin:0">Belum ada penugasan mapel untuk kelas ini.</p>'}
+    </div>`;
   return `<div class="row" style="margin-bottom:12px">
       <button class="btn sm" data-act="unduhSemua">⬇ Unduh rekap (Excel)</button>
       <button class="btn sm" data-act="unduhLengkap">⬇ Unduh lengkap: rekap + nilai siswa semua kelas</button></div>
-    <div class="tbl-wrap"><table class="lg"><thead><tr><th>Kelas</th><th class="num">Siswa</th>
-      ${m.mapel.map(n => `<th class="vh" title="${esc(n.nama)}"><div>${esc(n.singkat)}</div></th>`).join('')}
-      <th class="num" title="Rata-rata seluruh mapel">Rata-rata</th><th class="num">Disetor</th></tr></thead><tbody>
-      ${m.rows.map(r => `<tr><td class="kl"><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button></td><td class="num">${r.siswa}</td>
-        ${r.cells.map(c => !c ? '<td class="num muted">·</td>' : `<td class="num ${c.done ? '' : 'pc'}" title="${esc(c.guru)} · ${c.n} siswa${c.done ? '' : ' · belum lengkap disetor'}">${fmt(c.rata)}</td>`).join('')}
-        <td class="num"><b>${fmt(r.avg)}</b></td><td class="num">${esc(r.progres)}</td></tr>`).join('')}
-      <tr class="stat"><td colspan="2">Rata-rata semua kelas</td>${m.foot.map(v => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num">${fmt(m.footAvg)}</td><td></td></tr>
-    </tbody></table></div>
-    ${legendMapel(m.mapel.map(x => ({singkat: x.singkat, mapel: x.nama})))}
-    <p class="note">Setiap sel adalah rata-rata nilai kelas pada mapel tersebut. <b>·</b> = mapel tidak diajarkan di kelas itu. Latar kuning = belum seluruhnya disetor. Baris bawah dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
+    <h2 style="margin:0 0 8px">Rata-rata per mata pelajaran (semua kelas)</h2>
+    ${ringkas}
+    <h2 style="margin:22px 0 8px">Rata-rata per kelas</h2>
+    <div class="kgrid">${m.rows.map(blok).join('')}</div>
+    <p class="note">Setiap kelas hanya menampilkan mapel yang diajarkan di kelas itu, dengan urutan baku. Rata-rata adalah rata-rata nilai kelas pada mapel tersebut; latar kuning = belum seluruhnya disetor. Rata-rata semua kelas dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
 }
 
 /* ---------- Ekspor Excel ---------- */
@@ -1062,7 +1093,7 @@ function unduhSemua() {
 
 async function unduhLengkap() {
   await run(async () => {
-    const list = await api('leger', {kelas: '*'}, true);
+    const list = urutLeger(await api('leger', {kelas: '*'}, true));
     XLSX.writeFile(bukuLeger(list, true), 'Nilai_Lengkap_Semua_Kelas.xlsx');
   });
 }
