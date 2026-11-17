@@ -1102,7 +1102,7 @@ function adminData() {
 
 async function loadRekap() {
   S.rekap = null;
-  await run(async () => { S.rekap = await api('rekapKelas', {kelas: S.kelasSel}, true); renderAdmin(); });
+  await run(async () => { S.rekap = urutMapel(await api('rekapKelas', {kelas: S.kelasSel}, true)); renderAdmin(); });
 }
 
 function normWA(no) {
