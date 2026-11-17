@@ -188,12 +188,16 @@ const S = {
 
 let busyCount = 0;
 let loaderTimer = null;
+// Satu indikator saja: overlay di tengah layar (tidak muncul bila halaman sedang menampilkan spinner "Memuat…").
 function busy(d) {
   busyCount = Math.max(0, busyCount + d);
-  const on = busyCount > 0, ld = document.getElementById('loader');
-  document.getElementById('bar').style.display = on ? 'block' : 'none';
-  if (on && !loaderTimer && !ld.classList.contains('on')) loaderTimer = setTimeout(() => { loaderTimer = null; if (busyCount > 0) ld.classList.add('on'); }, 250); // tidak berkedip untuk proses singkat
-  if (!on) { clearTimeout(loaderTimer); loaderTimer = null; ld.classList.remove('on'); }
+  const ld = document.getElementById('loader');
+  if (busyCount > 0) {
+    if (!loaderTimer && !ld.classList.contains('on')) loaderTimer = setTimeout(() => {
+      loaderTimer = null;
+      if (busyCount > 0 && !document.querySelector('#app .splash')) ld.classList.add('on');
+    }, 250);
+  } else { clearTimeout(loaderTimer); loaderTimer = null; ld.classList.remove('on'); }
 }
 async function run(fn) { busy(1); try { return await fn(); } catch (e) { toast(e.message || String(e), 'err'); } finally { busy(-1); } }
 
@@ -312,12 +316,13 @@ const LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><r
 // URL logo dari sheet Config (kunci logo_url). Mendukung link Google Drive & URL gambar biasa.
 function logoSrc() {
   const u = String((S.cfg && S.cfg.logo_url) || '').trim();
-  if (!u) return '';
-  const m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=)([\w-]+)/.exec(u);
-  return m ? 'https://lh3.googleusercontent.com/d/' + m[1] : u;
+  if (!/^https?:\/\//i.test(u)) return '';
+  // Google Drive mengubah PNG transparan menjadi berlatar hitam -> diabaikan, dipakai logo bawaan yang transparan
+  if (/drive\.google\.com|googleusercontent\.com|docs\.google\.com/i.test(u)) return '';
+  return u;
 }
 function logoSvg(cls) { return `<span class="logo-img ${cls || ''}" style="border:0;padding:0;background:none">${LOGO_SVG}</span>`; }
-// Urutan: logo_url dari sheet Config -> logo.png (di folder yang sama dengan index.html) -> ikon bawaan
+// Urutan: logo_url dari sheet Config (bukan link Google Drive) -> logo bawaan yang tertanam di file ini
 function logoHtml(cls, paksaBawaan) {
   const src = paksaBawaan ? '' : logoSrc();
   if (!src) return `<img class="logo-img dflt ${cls || ''}" src="${LOGO_IMG}" alt="Logo" onerror="this.outerHTML=logoSvg('${cls || ''}'.trim())">`;
@@ -385,7 +390,7 @@ function viewLogin() {
     <button class="btn primary block" data-act="masuk">Masuk</button>
   </div>
   ${petunjuk()}
-  <p class="foot">Panitia? <a href="#/admin">Masuk halaman admin</a><br><span style="opacity:.6">v20261117</span></p></div>`;
+  <p class="foot">Panitia? <a href="#/admin">Masuk halaman admin</a><br><span style="opacity:.6">v20261117b</span></p></div>`;
 }
 
 async function loadTugas() {
@@ -618,7 +623,7 @@ function viewAdminLogin() {
       <label for="aPass">Password</label><input id="aPass" type="password" autocomplete="current-password">
       <button class="btn primary block" type="submit">Masuk</button>
     </form></div>
-    <p class="foot"><a href="#/">← Halaman guru</a></p></div>`;
+    <p class="foot"><a href="#/">← Halaman guru</a><br><span style="opacity:.6">v20261117b</span></p></div>`;
 }
 
 async function loadDash(silent) {
