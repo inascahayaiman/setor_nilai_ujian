@@ -108,16 +108,26 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .sub td{padding:8px 12px 8px 28px;font-size:14px}
 .linkbox{display:flex;gap:8px}
 .linkbox input{font-family:ui-monospace,Menlo,monospace;font-size:13px}
-th.vh{height:150px;min-width:34px;padding:8px 4px;text-align:center;vertical-align:bottom;text-transform:none;letter-spacing:0;font-size:12px}
-.vh>div{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;margin:0 auto;max-height:140px;overflow:hidden;text-overflow:ellipsis}
-td.vh{vertical-align:top;height:110px;text-align:center;padding:6px 4px;font-size:12px}
+th.vh{height:auto;width:40px;min-width:40px;max-width:40px;padding:8px 2px;text-align:center;vertical-align:bottom;text-transform:none;letter-spacing:0;font-size:12px}
+.vh>div{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;margin:0 auto;max-height:150px;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+td.vh{vertical-align:top;height:auto;width:40px;max-width:40px;text-align:center;padding:6px 2px;font-size:12px}
+table.lg{width:auto;min-width:0}
 table.lg th,table.lg td{padding:6px 8px;font-size:13px}
-table.lg td.nm{white-space:nowrap}
+table.lg th.vh,table.lg td.vh{padding:6px 2px}
+table.lg th.num,table.lg td.num{padding:6px 7px}
+table.lg td.nm,table.lg td.kl{white-space:nowrap}
+.abbr{margin-top:14px;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.abbr h4{margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.abbr ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 20px}
+.abbr li{display:flex;gap:10px;align-items:baseline;font-size:13px;line-height:1.35}
+.abbr li b{flex:0 0 64px;color:var(--brand-d)}
+.note{font-size:13px;color:var(--muted);margin:12px 0 0;line-height:1.6}
+.gl{margin-top:4px;font-size:12px;color:var(--muted);line-height:1.45}
 th.pend{background:var(--warn-l);color:var(--warn)}
 td.pc{background:var(--warn-l)}
 tr.stat td{background:#f8fafb;font-weight:600}
 td.th-c{color:var(--muted);font-weight:700}
-.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--brand);cursor:pointer;font-weight:700;text-align:left}
+.linkbtn{background:none;border:0;padding:0;font:inherit;white-space:nowrap;color:var(--brand);cursor:pointer;font-weight:700;text-align:left}
 .linkbtn:hover{text-decoration:underline}
 details.help{padding:0}
 details.help summary{padding:14px 16px;cursor:pointer;list-style:none}
@@ -216,9 +226,16 @@ const guruNames = x => (x.gurus || []).map(g => g.kode + ' - ' + g.nama).join(';
 function legendMapel(list) {
   const m = {};
   (list || []).forEach(x => { if (x.singkat) m[x.singkat] = x.mapel; });
-  const k = Object.keys(m);
+  const k = Object.keys(m).sort((a, b) => a.localeCompare(b));
   if (!k.length) return '';
-  return `<p class="muted small" style="margin:10px 0 0"><b>Singkatan mapel:</b> ${k.map(s => `${esc(s)} = ${esc(m[s])}`).join(' · ')}</p>`;
+  return `<div class="abbr"><h4>Keterangan singkatan mapel</h4><ul>${k.map(s => `<li><b>${esc(s)}</b><span>${esc(m[s])}</span></li>`).join('')}</ul></div>`;
+}
+// Nama lengkap guru untuk tabel rekap: satu guru -> namanya; Team Teaching -> label + daftar nama
+function guruNama(x) {
+  const gs = x.gurus || [], inp = gs.filter(g => g.peran === 'Menginput nilai');
+  if (!x.team) return esc(gs[0] ? gs[0].nama : '–');
+  if (inp.length === 1) return esc(inp[0].nama);
+  return `<span class="chip tt">Team Teaching</span><div class="gl">${gs.map(g => `<div>${esc(g.nama)}</div>`).join('')}</div>`;
 }
 // Keterangan singkatan & kode guru untuk file Excel
 function ketAoa(cols) {
@@ -677,10 +694,9 @@ function adminKelas() {
     const r = S.rekap, withN = r.filter(x => x.rata != null);
     const mean = withN.length ? withN.reduce((a, b) => a + b.rata, 0) / withN.length : null;
     table = `<div class="tbl-wrap"><table><thead><tr><th>Mata pelajaran</th><th>Guru</th><th>Status</th><th class="num">Terisi</th><th class="num" title="Tidak hadir">TH</th><th class="num">Rata-rata</th><th class="num">Std. dev</th><th class="num">Tertinggi</th><th class="num">Terendah</th><th></th></tr></thead><tbody>
-      ${r.map(x => `<tr><td><b title="${esc(x.mapel)}">${esc(x.singkat)}</b></td><td>${guruTag(x.guru, x.gurus)}</td><td>${badge(x.status)}</td><td class="num">${x.terisi}/${x.total}</td><td class="num">${x.th || '–'}</td><td class="num"><b>${fmt(x.rata)}</b></td><td class="num">${fmt(x.sd)}</td><td class="num">${fmt(x.max)}</td><td class="num">${fmt(x.min)}</td><td>${x.terisi ? `<button class="btn sm" data-act="lihatGrup" data-id="${esc(x.gid)}">Nilai</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">Belum ada penugasan untuk kelas ini.</td></tr>'}
+      ${r.map(x => `<tr><td><b>${esc(x.mapel)}</b></td><td>${guruNama(x)}</td><td>${badge(x.status)}</td><td class="num">${x.terisi}/${x.total}</td><td class="num">${x.th || '–'}</td><td class="num"><b>${fmt(x.rata)}</b></td><td class="num">${fmt(x.sd)}</td><td class="num">${fmt(x.max)}</td><td class="num">${fmt(x.min)}</td><td>${x.terisi ? `<button class="btn sm" data-act="lihatGrup" data-id="${esc(x.gid)}">Nilai</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">Belum ada penugasan untuk kelas ini.</td></tr>'}
       </tbody>${withN.length ? `<tfoot><tr><td colspan="5"><b>Rata-rata seluruh mapel</b></td><td class="num"><b>${fmt(mean)}</b></td><td colspan="4"></td></tr></tfoot>` : ''}</table></div>
-      ${legendMapel(r)}
-      <p class="muted small" style="margin-top:8px">Statistik dihitung dari nilai yang sudah masuk (TH = tidak hadir, tidak dihitung dalam rata-rata, standar deviasi, tertinggi, dan terendah). Standar deviasi: populasi. Mapel <b>Team Teaching</b>: nilai tiap siswa adalah rata-rata nilai dari guru yang menginput (klik kode guru untuk melihat nama). Bila hanya satu guru yang menginput, nilainya dipakai apa adanya.</p>`;
+      <p class="note">Statistik dihitung dari nilai yang sudah masuk (TH = tidak hadir, tidak dihitung dalam rata-rata, standar deviasi, tertinggi, dan terendah). Standar deviasi: populasi. Mapel <b>Team Teaching</b>: nilai tiap siswa adalah rata-rata nilai dari guru yang menginput. Bila hanya satu guru yang menginput, nilainya dipakai apa adanya.</p>`;
   }
   return `<div class="row" style="margin-bottom:12px"><select id="fKelas" style="max-width:300px">${opts}</select><button class="btn sm" data-act="unduhRekap" ${S.rekap && S.rekap.length ? '' : 'disabled'}>⬇ Unduh Excel</button></div>${table}`;
 }
@@ -732,7 +748,7 @@ function adminLeger() {
   return `<div class="row" style="margin-bottom:12px"><select id="fLeger" style="max-width:300px">${opts}</select>
       <button class="btn sm" data-act="unduhLeger" ${S.leger && S.leger.length ? '' : 'disabled'}>⬇ Unduh Excel</button></div>
     ${S.leger ? (S.leger.length ? S.leger.map(legerBlock).join('') : '<p class="muted">Tidak ada data untuk kelas ini.</p>') : '<p class="muted">Memuat…</p>'}
-    <p class="muted small">Kolom berlatar kuning = mapel yang belum seluruhnya disetor. <b>–</b> = belum diisi, <b>TH</b> = tidak hadir (tidak dihitung). Total nilai dan rata-rata dihitung dari nilai yang sudah masuk.</p>`;
+    <p class="note">Kolom berlatar kuning = mapel yang belum seluruhnya disetor. <b>–</b> = belum diisi, <b>TH</b> = tidak hadir (tidak dihitung). Total nilai dan rata-rata dihitung dari nilai yang sudah masuk. Klik kode guru untuk melihat nama lengkapnya.</p>`;
 }
 
 /* ---------- Semua kelas (matriks rata-rata kelas × mapel) ---------- */
@@ -764,14 +780,14 @@ function adminSemua() {
       <button class="btn sm" data-act="unduhLengkap">⬇ Unduh lengkap: rekap + nilai siswa semua kelas</button></div>
     <div class="tbl-wrap"><table class="lg"><thead><tr><th>Kelas</th><th class="num">Siswa</th>
       ${m.mapel.map(n => `<th class="vh" title="${esc(n.nama)}"><div>${esc(n.singkat)}</div></th>`).join('')}
-      <th class="num">Rata-rata seluruh mapel</th><th class="num">Disetor</th></tr></thead><tbody>
-      ${m.rows.map(r => `<tr><td><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button></td><td class="num">${r.siswa}</td>
+      <th class="num" title="Rata-rata seluruh mapel">Rata-rata</th><th class="num">Disetor</th></tr></thead><tbody>
+      ${m.rows.map(r => `<tr><td class="kl"><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button></td><td class="num">${r.siswa}</td>
         ${r.cells.map(c => !c ? '<td class="num muted">·</td>' : `<td class="num ${c.done ? '' : 'pc'}" title="${esc(c.guru)} · ${c.n} siswa${c.done ? '' : ' · belum lengkap disetor'}">${fmt(c.rata)}</td>`).join('')}
         <td class="num"><b>${fmt(r.avg)}</b></td><td class="num">${esc(r.progres)}</td></tr>`).join('')}
       <tr class="stat"><td colspan="2">Rata-rata semua kelas</td>${m.foot.map(v => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num">${fmt(m.footAvg)}</td><td></td></tr>
     </tbody></table></div>
     ${legendMapel(m.mapel.map(x => ({singkat: x.singkat, mapel: x.nama})))}
-    <p class="muted small" style="margin-top:8px">Setiap sel adalah rata-rata nilai kelas pada mapel tersebut. <b>·</b> = mapel tidak diajarkan di kelas itu. Latar kuning = belum seluruhnya disetor. Baris bawah dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
+    <p class="note">Setiap sel adalah rata-rata nilai kelas pada mapel tersebut. <b>·</b> = mapel tidak diajarkan di kelas itu. Latar kuning = belum seluruhnya disetor. Baris bawah dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
 }
 
 /* ---------- Ekspor Excel ---------- */
@@ -835,12 +851,18 @@ async function unduhLengkap() {
 
 function adminData() {
   const d = S.dash;
-  const rows = d.tugas.map(t => `<tr><td>${esc(t.id)}</td><td><b>${esc(t.kode)}</b> — ${esc(t.guru)}</td><td>${esc(t.mapel)} <span class="muted small">(${esc(t.singkat)})</span></td><td>${esc(t.kelas)}</td><td class="num">${t.total}</td><td>${badge(t.status)}</td></tr>`).join('');
+  const rows = d.tugas.map(t => `<tr><td>${esc(t.id)}</td><td><b>${esc(t.kode)}</b></td><td>${esc(t.guru)}</td><td><b>${esc(t.singkat)}</b></td><td>${esc(t.mapel)}</td><td>${esc(t.kelas)}</td><td class="num">${t.total}</td><td>${badge(t.status)}</td></tr>`).join('');
   return `<div class="card"><h2>Kelola data master</h2>
-    <p class="muted">Data guru, mapel, siswa, dan penugasan dikelola langsung di Google Spreadsheet (impor/salin-tempel dari data sekolah). Perubahan langsung tampil di aplikasi. Kode guru &amp; singkatan mapel diatur di kolom <b>kode</b> (sheet Guru) dan <b>singkatan</b> (sheet Mapel); isi otomatis lewat menu <b>Setor Nilai › 3. Isi kode guru &amp; singkatan mapel otomatis</b>. Beberapa baris Penugasan dengan mapel &amp; kelas yang sama = Team Teaching.</p>
+    <p class="muted">Data guru, mapel, siswa, dan penugasan dikelola langsung di Google Spreadsheet. Perubahan langsung tampil di aplikasi.</p>
+    <ul class="note" style="margin:0 0 16px;padding-left:20px">
+      <li><b>Kode guru</b>: kolom <b>kode</b> di sheet Guru.</li>
+      <li><b>Singkatan mapel</b>: kolom <b>singkatan</b> di sheet Mapel.</li>
+      <li>Isi otomatis lewat menu <b>Setor Nilai › 3. Isi kode guru &amp; singkatan mapel otomatis</b>.</li>
+      <li><b>Team Teaching</b>: beberapa baris Penugasan dengan mapel &amp; kelas yang sama.</li>
+    </ul>
     <a class="btn primary" href="${esc(d.sheetUrl)}" target="_blank" rel="noopener">Buka Spreadsheet ↗</a></div>
     <h2>Daftar penugasan (${d.tugas.length})</h2>
-    <div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Guru</th><th>Mapel</th><th>Kelas</th><th class="num">Siswa</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>ID</th><th>Kode guru</th><th>Nama guru</th><th>Singkatan</th><th>Mapel</th><th>Kelas</th><th class="num">Siswa</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 async function loadRekap() {
