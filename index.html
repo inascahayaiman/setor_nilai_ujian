@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setor Nilai Ujian</title>
 <meta name="theme-color" content="#0f766e">
-<link rel="icon" href="favicon.ico" sizes="any" class="fi-extra">
-<link rel="icon" id="favicon" type="image/png" sizes="32x32" href="favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png" class="fi-extra">
-<link rel="apple-touch-icon" id="touchicon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.ico?v=20261117" sizes="any" class="fi-extra">
+<link rel="icon" id="favicon" type="image/png" sizes="32x32" href="favicon-32.png?v=20261117">
+<link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png?v=20261117" class="fi-extra">
+<link rel="apple-touch-icon" id="touchicon" href="apple-touch-icon.png?v=20261117">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
@@ -106,6 +106,12 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:10px;font-size:14px;box-shadow:0 6px 20px rgba(0,0,0,.2);width:100%}
 .toast.err{background:var(--bad)}
 .toast.ok{background:var(--ok)}
+#loader{position:fixed;inset:0;z-index:98;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(243,246,248,.82);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+#loader.on{display:flex}
+#loader span{font-weight:600;color:var(--brand-d);font-size:14px}
+.spin{width:46px;height:46px;border-radius:50%;border:5px solid var(--brand-l);border-top-color:var(--brand);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.splash{display:flex;flex-direction:column;align-items:center;gap:14px;padding:22vh 16px 0;color:var(--brand-d);font-weight:600}
 #bar{position:fixed;top:0;left:0;right:0;height:3px;background:var(--brand);z-index:99;transform-origin:left;animation:bar 1.1s ease-in-out infinite;display:none}
 @keyframes bar{0%{transform:scaleX(.05)}60%{transform:scaleX(.8)}100%{transform:scaleX(1);opacity:.3}}
 .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
@@ -151,7 +157,8 @@ details.help li{margin-bottom:5px}
 </head>
 <body>
 <div id="bar"></div>
-<div id="app"></div>
+<div id="loader"><div class="spin"></div><span>Mohon tunggu…</span></div>
+<div id="app"><div class="splash"><div class="spin"></div>Memuat aplikasi…</div></div>
 <div id="modal-root"></div>
 <div id="toast"></div>
 
@@ -180,7 +187,14 @@ const S = {
 };
 
 let busyCount = 0;
-function busy(d) { busyCount += d; document.getElementById('bar').style.display = busyCount > 0 ? 'block' : 'none'; }
+let loaderTimer = null;
+function busy(d) {
+  busyCount = Math.max(0, busyCount + d);
+  const on = busyCount > 0, ld = document.getElementById('loader');
+  document.getElementById('bar').style.display = on ? 'block' : 'none';
+  if (on && !loaderTimer && !ld.classList.contains('on')) loaderTimer = setTimeout(() => { loaderTimer = null; if (busyCount > 0) ld.classList.add('on'); }, 250); // tidak berkedip untuk proses singkat
+  if (!on) { clearTimeout(loaderTimer); loaderTimer = null; ld.classList.remove('on'); }
+}
 async function run(fn) { busy(1); try { return await fn(); } catch (e) { toast(e.message || String(e), 'err'); } finally { busy(-1); } }
 
 function toast(msg, type) {
@@ -305,19 +319,22 @@ function logoSvg(cls) { return `<span class="logo-img ${cls || ''}" style="borde
 // Urutan: logo_url dari sheet Config -> logo.png (di folder yang sama dengan index.html) -> ikon bawaan
 function logoHtml(cls, paksaBawaan) {
   const src = paksaBawaan ? '' : logoSrc();
-  if (!src) return `<img class="logo-img dflt ${cls || ''}" src="logo.png" alt="Logo" onerror="this.outerHTML=logoSvg('${cls || ''}'.trim())">`;
+  if (!src) return `<img class="logo-img dflt ${cls || ''}" src="logo.png?v=20261117" alt="Logo" onerror="this.outerHTML=logoSvg('${cls || ''}'.trim())">`;
   return `<img class="logo-img ${cls || ''}" src="${esc(src)}" alt="Logo" onerror="this.outerHTML=logoHtml('${cls || ''}'.trim(), true)">`;
 }
 function setFavicon() {
-  const src = logoSrc(), href = src || document.getElementById('favicon').dataset.def;
-  const f = document.getElementById('favicon'), t = document.getElementById('touchicon');
-  if (!f.dataset.def) f.dataset.def = f.getAttribute('href');
-  const use = src || f.dataset.def;
-  if (src) {   // logo sekolah dipakai sebagai favicon: singkirkan ikon bawaan lainnya
+  const src = logoSrc();
+  if (S._fav === src) return;
+  S._fav = src;
+  if (!src) return;   // pakai favicon dari file (sudah ada di <head>)
+  // logo dari Config dipakai hanya bila benar-benar bisa dimuat; bila gagal tetap memakai favicon file
+  const im = new Image();
+  im.onload = () => {
     document.querySelectorAll('link.fi-extra').forEach(e => e.remove());
-    f.removeAttribute('type');
-  }
-  f.setAttribute('href', use); t.setAttribute('href', use);
+    const f = document.getElementById('favicon'), t = document.getElementById('touchicon');
+    f.removeAttribute('type'); f.setAttribute('href', src); t.setAttribute('href', src);
+  };
+  im.src = src;
 }
 function brand() {
   const c = S.cfg || {};
@@ -340,7 +357,7 @@ window.addEventListener('load', route);
  *  HALAMAN GURU
  * ============================================================ */
 async function initGuru() {
-  mount('<div class="wrap narrow"><p class="muted" style="text-align:center">Memuat…</p></div>');
+  mount('<div class="splash"><div class="spin"></div>Memuat…</div>');
   await run(async () => {
     S.cfg = await api('config');
     S.guruList = await api('guruList');
@@ -367,7 +384,7 @@ function viewLogin() {
     <button class="btn primary block" data-act="masuk">Masuk</button>
   </div>
   ${petunjuk()}
-  <p class="foot">Panitia? <a href="#/admin">Masuk halaman admin</a></p></div>`;
+  <p class="foot">Panitia? <a href="#/admin">Masuk halaman admin</a><br><span style="opacity:.6">v20261117</span></p></div>`;
 }
 
 async function loadTugas() {
@@ -587,7 +604,7 @@ function viewSelesai() {
 async function initAdmin() {
   if (!S.cfg.nama_sekolah && !CONFIG.API_URL.startsWith('PASTE')) { try { S.cfg = await api('config'); } catch (e) { /* abaikan */ } }
   if (!S.adminToken) { mount(viewAdminLogin()); return; }
-  mount('<div class="wrap"><p class="muted">Memuat dashboard…</p></div>');
+  mount('<div class="splash"><div class="spin"></div>Memuat dashboard…</div>');
   await loadDash();
   S.timer = setInterval(() => { if (!document.hidden && S.adminToken && !document.getElementById('modal-root').innerHTML) loadDash(true); }, 60000);
 }
