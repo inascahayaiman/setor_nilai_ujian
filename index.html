@@ -198,12 +198,6 @@ table.lg th,table.lg td{padding:6px 8px;font-size:13px}
 table.lg th.vh,table.lg td.vh{padding:6px 2px}
 table.lg th.num,table.lg td.num{padding:6px 7px}
 table.lg td.nm,table.lg td.kl{white-space:nowrap}
-.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr));gap:16px;align-items:start;margin-top:4px}
-.kblk{margin:0}
-.kblk .kh{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-bottom:8px}
-.kblk .kh .linkbtn{font-size:16px}
-.kblk .km{font-size:12.5px;color:var(--muted)}
-table.lg td.mp{white-space:normal;font-weight:600;color:var(--navy)}
 .abbr{margin-top:14px;padding:13px 15px;background:var(--card);border:1px solid var(--line);border-radius:10px}
 .abbr h4{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
 .abbr ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 20px}
@@ -1005,38 +999,30 @@ function semuaData() {
       return g ? {rata: g.rata, n: g.n, done: g.status === 'Disetor', guru: g.guru} : null;
     });
     const got = cells.filter(c => c && c.rata != null);
-    const daftar = urutMapel(gs.map(g => ({mapel: g.mapel, singkat: g.singkat, rata: g.rata, n: g.n, status: g.status, guru: g.guru})));
-    return {kelas: k.nama, siswa: k.siswa, cells, daftar, avg: got.length ? got.reduce((a, c) => a + c.rata, 0) / got.length : null,
+    return {kelas: k.nama, siswa: k.siswa, cells, avg: got.length ? got.reduce((a, c) => a + c.rata, 0) / got.length : null,
       progres: `${gs.filter(g => g.status === 'Disetor').length}/${gs.length}`};
   });
   const foot = mapel.map((_, j) => { let s = 0, n = 0; rows.forEach(r => { const c = r.cells[j]; if (c && c.rata != null) { s += c.rata * c.n; n += c.n; } }); return n ? s / n : null; });
   const av = rows.filter(r => r.avg != null);
-  const jml = mapel.map((_, j) => rows.filter(r => r.cells[j]).length);
-  return {mapel, jml, rows, foot, footAvg: av.length ? av.reduce((a, r) => a + r.avg, 0) / av.length : null};
+  return {mapel, rows, foot, footAvg: av.length ? av.reduce((a, r) => a + r.avg, 0) / av.length : null};
 }
 
 function adminSemua() {
   const m = semuaData();
   if (!m.rows.length) return '<p class="muted">Belum ada data kelas.</p>';
-  const ringkas = `<div class="tbl-wrap"><table class="lg"><thead><tr><th class="num">No</th><th>Mata pelajaran</th><th class="num">Jumlah kelas</th><th class="num">Rata-rata</th></tr></thead><tbody>
-      ${m.mapel.map((x, j) => `<tr><td class="num muted">${j + 1}</td><td class="mp">${esc(x.nama)}</td><td class="num">${m.jml[j]}</td><td class="num"><b>${fmt(m.foot[j])}</b></td></tr>`).join('')}
-      <tr class="stat"><td colspan="3">Rata-rata semua kelas</td><td class="num">${fmt(m.footAvg)}</td></tr>
-    </tbody></table></div>`;
-  const blok = r => `<div class="kblk">
-      <div class="kh"><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button>
-        <span class="km">${r.siswa} siswa · ${r.daftar.length} mapel · disetor ${esc(r.progres)} · rata-rata <b>${fmt(r.avg)}</b></span></div>
-      ${r.daftar.length ? `<div class="tbl-wrap"><table class="lg"><thead><tr><th class="num">No</th><th>Mata pelajaran</th><th>Guru</th><th class="num">Siswa</th><th class="num">Rata-rata</th><th>Status</th></tr></thead><tbody>
-        ${r.daftar.map((g, i) => `<tr><td class="num muted">${i + 1}</td><td class="mp" title="${esc(g.singkat)}">${esc(g.mapel)}</td><td class="small">${esc(g.guru)}</td><td class="num">${g.n == null ? '–' : g.n}</td><td class="num ${g.status === 'Disetor' ? '' : 'pc'}"><b>${fmt(g.rata)}</b></td><td>${badge(g.status)}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted small" style="margin:0">Belum ada penugasan mapel untuk kelas ini.</p>'}
-    </div>`;
   return `<div class="row" style="margin-bottom:12px">
       <button class="btn sm" data-act="unduhSemua">⬇ Unduh rekap (Excel)</button>
       <button class="btn sm" data-act="unduhLengkap">⬇ Unduh lengkap: rekap + nilai siswa semua kelas</button></div>
-    <h2 style="margin:0 0 8px">Rata-rata per mata pelajaran (semua kelas)</h2>
-    ${ringkas}
-    <h2 style="margin:22px 0 8px">Rata-rata per kelas</h2>
-    <div class="kgrid">${m.rows.map(blok).join('')}</div>
-    <p class="note">Setiap kelas hanya menampilkan mapel yang diajarkan di kelas itu, dengan urutan baku. Rata-rata adalah rata-rata nilai kelas pada mapel tersebut; latar kuning = belum seluruhnya disetor. Rata-rata semua kelas dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
+    <div class="tbl-wrap"><table class="lg"><thead><tr><th>Kelas</th><th class="num">Siswa</th>
+      ${m.mapel.map(n => `<th class="vh" title="${esc(n.nama)}"><div>${esc(n.singkat)}</div></th>`).join('')}
+      <th class="num" title="Rata-rata seluruh mapel">Rata-rata</th><th class="num">Disetor</th></tr></thead><tbody>
+      ${m.rows.map(r => `<tr><td class="kl"><button class="linkbtn" data-act="keLeger" data-k="${esc(r.kelas)}" title="Lihat nilai siswa kelas ini">${esc(r.kelas)}</button></td><td class="num">${r.siswa}</td>
+        ${r.cells.map(c => !c ? '<td class="num muted">·</td>' : `<td class="num ${c.done ? '' : 'pc'}" title="${esc(c.guru)} · ${c.n} siswa${c.done ? '' : ' · belum lengkap disetor'}">${fmt(c.rata)}</td>`).join('')}
+        <td class="num"><b>${fmt(r.avg)}</b></td><td class="num">${esc(r.progres)}</td></tr>`).join('')}
+      <tr class="stat"><td colspan="2">Rata-rata semua kelas</td>${m.foot.map(v => `<td class="num">${fmt(v)}</td>`).join('')}<td class="num">${fmt(m.footAvg)}</td><td></td></tr>
+    </tbody></table></div>
+    ${legendMapel(m.mapel.map(x => ({singkat: x.singkat, mapel: x.nama})))}
+    <p class="note">Setiap sel adalah rata-rata nilai kelas pada mapel tersebut. <b>·</b> = mapel tidak diajarkan di kelas itu. Latar kuning = belum seluruhnya disetor. Baris bawah dihitung berbobot jumlah siswa. Klik nama kelas untuk melihat nilai per siswa.</p>`;
 }
 
 /* ---------- Ekspor Excel ---------- */
